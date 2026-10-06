@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE article PUBLIC "-//NLM//DTD JATS (Z39.96) Journal Archiving and Interchange DTD v1.3 20210610//EN" "JATS-archivearticle1-3.dtd">
+<!-- A made-up article with the quirks of Europe PMC's JATS: citations inside <sup>, ranges written as two links, author-year citations, boilerplate sections inside <body>, identifiers as <ext-link>, nested sections, a box, and a peer-review sub-article. -->
+<article xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:mml="http://www.w3.org/1998/Math/MathML" article-type="research-article">
+  <front>
+    <article-meta>
+      <article-id pub-id-type="pmcid">PMC1234567</article-id>
+      <article-id pub-id-type="pmid">30000001</article-id>
+      <article-id pub-id-type="doi">10.1000/TEST.2021.001</article-id>
+      <title-group>
+        <article-title>Rodent density and <italic>Mammarenavirus</italic> spillover in a made-up valley</article-title>
+      </title-group>
+      <pub-date pub-type="epub"><day>3</day><month>5</month><year>2021</year></pub-date>
+      <pub-date pub-type="pmc-release"><year>2022</year></pub-date>
+      <abstract>
+        <sec><title>Background</title><p>Spillover varies with rodent density.</p></sec>
+        <sec><title>Methods</title><p>We trapped rodents in two seasons.</p></sec>
+      </abstract>
+      <abstract abstract-type="summary"><p>A lay summary that is left out.</p></abstract>
+    </article-meta>
+  </front>
+  <body>
+    <p>An opening paragraph before any heading.</p>
+    <sec id="s1">
+      <title>1. Introduction</title>
+      <p>Spillover is frequent in the dry season<sup><xref ref-type="bibr" rid="R1">1</xref>,<xref ref-type="bibr" rid="R2">2</xref></sup>. Earlier surveys agree [<xref ref-type="bibr" rid="R1">1</xref>–<xref ref-type="bibr" rid="R3">3</xref>], as does a field study (<xref ref-type="bibr" rid="R2">Smith et al., 2019</xref>).</p>
+      <p>Viral loads reached 10<sup>5</sup> copies per mL, with <inline-formula><mml:math><mml:mi>n</mml:mi><mml:mo>=</mml:mo><mml:mn>12</mml:mn></mml:math></inline-formula> animals.<fig id="F1"><label>Fig. 1</label><caption><title>Trapping sites.</title><p>Sites in the valley<xref ref-type="bibr" rid="R4">4</xref>.</p></caption></fig></p>
+    </sec>
+    <sec id="s2" sec-type="methods">
+      <title>Methods</title>
+      <p>Traps were set every night.</p>
+      <sec id="s2-1">
+        <title>Sequencing</title>
+        <p>Samples were sequenced in 2020.</p>
+      </sec>
+      <p>All analyses used R.</p>
+    </sec>
+    <sec id="s3">
+      <title>Discussion</title>
+      <p>Density predicts spillover.</p>
+      <boxed-text id="B1">
+        <label>Box 1</label>
+        <caption><title>Glossary of terms</title></caption>
+        <p>Spillover is transmission from one host species to another.</p>
+      </boxed-text>
+      <table-wrap id="T1"><label>Table 1</label><caption><p>Rodents trapped per season.</p></caption><table><tr><td>12</td></tr></table></table-wrap>
+    </sec>
+    <sec id="s4"><title>Peer review</title><p>Nature thanks the reviewers.</p></sec>
+    <sec id="s5" sec-type="supplementary-material">
+      <title>Supplementary Information</title>
+      <fig id="S1"><label>Supplementary Fig. 1</label><caption><p>A supplementary figure that is left out.</p></caption></fig>
+    </sec>
+    <sec id="s6"><title>Acknowledgements</title><p>We thank the field team.</p></sec>
+  </body>
+  <back>
+    <ref-list>
+      <ref id="R1"><label>1.</label><mixed-citation publication-type="journal">Doe J. Seasonal spillover. <italic>J Virol</italic>. 2015;89:1–10. <pub-id pub-id-type="doi">10.1000/JV.2015.1</pub-id></mixed-citation></ref>
+      <ref id="R2"><label>2.</label><element-citation publication-type="journal"><person-group person-group-type="author"><name><surname>Smith</surname><given-names>A</given-names></name><name><surname>Jones</surname><given-names>B</given-names></name></person-group><article-title>Field study of rodents</article-title><source>Ecology</source><year>2019</year><volume>7</volume><fpage>11</fpage><lpage>20</lpage><pub-id pub-id-type="pmid">29999999</pub-id></element-citation></ref>
+      <ref id="R3"><label>3.</label><mixed-citation>Roe K. Older survey. Lancet. 1990;1:5.</mixed-citation><ext-link ext-link-type="pmid" xlink:href="https://pubmed.ncbi.nlm.nih.gov/2000000"/><ext-link ext-link-type="pmcid" xlink:href="PMC7654321"/></ref>
+      <ref id="R4"><label>4.</label><citation-alternatives><element-citation><person-group><name><surname>Poe</surname><given-names>E</given-names></name></person-group><article-title>Valley maps</article-title><source>Maps</source><year>2001</year></element-citation><mixed-citation>Poe E. Valley maps. Maps. 2001.</mixed-citation></citation-alternatives><ext-link ext-link-type="doi" xlink:href="https://doi.org/10.1000/maps.4"/></ref>
+    </ref-list>
+  </back>
+  <sub-article article-type="reviewer-report">
+    <back><ref-list><ref id="SR1"><mixed-citation>A reference in a reviewer report.</mixed-citation></ref></ref-list></back>
+  </sub-article>
+</article>

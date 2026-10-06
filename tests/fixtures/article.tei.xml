@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A made-up GROBID TEI with its quirks: flat <div>s, a heading-only <div> that parents the next ones, a headless <div> that continues a section, a line number and a download stamp read as headings, acknowledgements in <body>, a figure that is not one, and an annex with real text. -->
+<TEI xmlns="http://www.tei-c.org/ns/1.0">
+  <teiHeader xml:lang="en">
+    <fileDesc>
+      <titleStmt><title level="a" type="main">Rodent density and spillover</title></titleStmt>
+      <sourceDesc>
+        <biblStruct>
+          <analytic><title level="a" type="main">Rodent density and spillover</title></analytic>
+          <monogr><imprint><date type="published" when="2021-05-03"/></imprint></monogr>
+          <idno type="DOI">10.1000/TEST.2021.002</idno>
+        </biblStruct>
+      </sourceDesc>
+    </fileDesc>
+    <profileDesc>
+      <abstract><div><p>Spillover varies with rodent density.</p></div></abstract>
+    </profileDesc>
+  </teiHeader>
+  <text xml:lang="en">
+    <body>
+      <div><head>Introduction</head><p>Spillover is frequent <ref type="bibr" target="#b0">[1]</ref>, <ref type="bibr" target="#b1">[2]</ref>. Surveys agree <ref type="bibr" target="#b0">[1]</ref>-<ref type="bibr" target="#b2">[3]</ref>, as does <ref type="bibr" target="#b1">Smith et al. (2019)</ref>.</p></div>
+      <div><head>Methods</head></div>
+      <div><head>Trapping</head><p>Traps were set every night.</p></div>
+      <figure xml:id="fig_0"><head>Fig. 1 .</head><label>1</label><figDesc>Fig. 1. Trapping sites in the valley <ref type="bibr" target="#b2">[3]</ref>.</figDesc></figure>
+      <div><p>Traps were checked at dawn.</p></div>
+      <div><head>214</head><p>Rodents were identified by sequencing.</p></div>
+      <div><head>Downloaded from https://example.org on 1 May 2021</head><p>Sequences were deposited.</p></div>
+      <div><head>Discussion</head><p>Density predicts spillover <ref type="bibr">[9]</ref>.</p></div>
+      <div><head>Acknowledgements</head><p>We thank the field team.</p></div>
+      <div><p>And the funders.</p></div>
+      <figure xml:id="fig_1"><figDesc>Reprints or correspondence: Dr A Smith, a made-up address.</figDesc></figure>
+      <figure type="table" xml:id="tab_0"><head>Table 1</head><label>1</label><figDesc>Rodents trapped per season and site.</figDesc></figure>
+    </body>
+    <back>
+      <div type="acknowledgement"><div><head>Acknowledgements</head><p>Not read.</p></div></div>
+      <div type="annex"><div><head>Appendix A</head><p>Trap positions are listed by village.</p></div></div>
+      <div type="references">
+        <listBibl>
+          <biblStruct xml:id="b0">
+            <analytic><title level="a" type="main">Seasonal spillover</title><author><persName><forename type="first">J</forename><surname>Doe</surname></persName></author><idno type="DOI">10.1000/JV.2015.1</idno></analytic>
+            <monogr><title level="j">J Virol</title><imprint><date type="published" when="2015"/></imprint></monogr>
+            <note type="raw_reference">Doe J. Seasonal spillover. J Virol. 2015;89:1-10.</note>
+          </biblStruct>
+          <biblStruct xml:id="b1">
+            <analytic><title level="a" type="main">Field study of rodents</title><author><persName><forename type="first">Alice</forename><surname>Smith</surname></persName></author></analytic>
+            <monogr><title level="j">Ecology</title><imprint><biblScope unit="volume">7</biblScope><biblScope unit="page" from="11" to="20"/><date type="published" when="2019"/></imprint></monogr>
+            <idno type="PMID">29999999</idno>
+          </biblStruct>
+          <biblStruct xml:id="b2">
+            <monogr><title level="m">Older survey</title><imprint><date type="published" when="1990"/></imprint></monogr>
+            <note type="raw_reference">Roe K. Older survey. 1990.</note>
+          </biblStruct>
+        </listBibl>
+      </div>
+    </back>
+  </text>
+</TEI>

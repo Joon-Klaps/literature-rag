@@ -3,6 +3,7 @@
 Run `uv run literature-rag-check`. Each line is one prerequisite, and the command exits with status 1 when a required one is missing. qmd is only the baseline to beat, so it is reported but not required.
 """
 
+import json
 import shutil
 import subprocess
 from collections.abc import Callable
@@ -69,6 +70,18 @@ def qmd() -> tuple[bool, str]:
     return indexed, "collection 'papers' indexed" if indexed else "no 'papers' collection"
 
 
+def library() -> tuple[bool, str]:
+    """Whether data/papers is up to date with data/manuscripts, so a paper fetched outside literature-rag-add shows up here."""
+    if not config.MANIFEST_FILE.is_file():
+        return False, "not built yet; run literature-rag-ingest"
+    seen = {row["source_file"] for row in json.loads(config.MANIFEST_FILE.read_text(encoding="utf-8"))}
+    waiting = {path.name for path in config.MANUSCRIPTS_DIR.glob("*.md")} - seen
+    papers = len(list(config.PAPERS_DIR.glob("*.json")))
+    if waiting:
+        return False, f"{papers} papers; {len(waiting)} new manuscripts not ingested yet; run literature-rag-ingest"
+    return True, f"{papers} papers in {config.PAPERS_DIR.name}/, up to date with the manuscripts"
+
+
 CHECKS: list[tuple[str, Callable[[], tuple[bool, str]], bool]] = [
     ("thesis repository", thesis_repo, True),
     ("GROBID", grobid, True),
@@ -76,6 +89,7 @@ CHECKS: list[tuple[str, Callable[[], tuple[bool, str]], bool]] = [
     ("models", models, True),
     ("disk", disk, True),
     ("qmd baseline", qmd, False),
+    ("library", library, False),
 ]
 
 

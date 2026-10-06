@@ -13,4 +13,6 @@ Hybrid retrieval over Joon's PhD thesis and the papers it cites, served to Claud
 
 - `uv run literature-rag-check` shows what is in place: thesis repository, GROBID, Europe PMC, models, disk, qmd.
 - GROBID runs in Docker under Colima as the container `grobid`; after a restart, `docker start grobid`.
+- `uv run literature-rag-ingest` brings `data/papers/` up to date from the thesis repository's manuscripts; downloads and GROBID output are cached in `data/raw/`, so only new papers cost time.
+- `literature-rag-add <DOI | title | PDF>` (installed with `uv tool install --editable .`, see the README) runs the thesis repository's fetch script with those arguments, then ingests.
 - `uv run pytest` runs the tests.

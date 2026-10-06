@@ -1,0 +1,16 @@
+# CLAUDE.md — literature-rag
+
+Hybrid retrieval over Joon's PhD thesis and the papers it cites, served to Claude Code over MCP. The background and the design decisions are in `HANDOFF-literature-rag.md` in the thesis repository (`~/Desktop/School/PhD/phd-thesis`). The build follows `PLAN.md` block by block: read it first, and log progress at its end.
+
+## Rules
+
+- The thesis repository is read-only from here. Papers enter it only through its `scripts/fetch_pubmed_pdf.py`.
+- Nothing derived from the papers or the thesis goes into git. `data/` and `index/` are gitignored, tests use synthetic fixtures, and `results/` holds numbers only.
+- Joon follows the code to learn from it, so keep it modular: one stage per module, settings in `config.py`, record shapes in `records.py`, pure functions for parsing, ranking and scoring, and a `main()` per command. Comments are full sentences on one line, in UK spelling.
+- Commit or push only when Joon asks.
+
+## Running things
+
+- `uv run literature-rag-check` shows what is in place: thesis repository, GROBID, Europe PMC, models, disk, qmd.
+- GROBID runs in Docker under Colima as the container `grobid`; after a restart, `docker start grobid`.
+- `uv run pytest` runs the tests.

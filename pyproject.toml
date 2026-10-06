@@ -1,0 +1,34 @@
+[project]
+name = "literature-rag"
+version = "0.1.0"
+description = "Hybrid retrieval over a PhD thesis and its literature, served to Claude Code over MCP"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "lxml>=6.1.3",
+    "mcp[cli]>=2.3",
+    "numpy>=2.5.3",
+    "pylatexenc>=2.11",
+    "rank-bm25>=0.2.2",
+    "sentence-transformers>=6.1.0",
+]
+
+[project.scripts]
+literature-rag-check = "literature_rag.check:main"
+literature-rag-models = "literature_rag.models:main"
+
+[build-system]
+requires = ["uv_build>=0.11.0,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "literature_rag"
+
+[tool.ruff]
+line-length = 120
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]

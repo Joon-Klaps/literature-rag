@@ -20,6 +20,8 @@ literature-rag-models = "literature_rag.models:main"
 literature-rag-ingest = "literature_rag.ingest:main"
 literature-rag-add = "literature_rag.add:main"
 literature-rag-chunk = "literature_rag.chunks:main"
+literature-rag-build = "literature_rag.index:main"
+literature-rag-search = "literature_rag.search:main"
 
 [build-system]
 requires = ["uv_build>=0.11.0,<0.12"]

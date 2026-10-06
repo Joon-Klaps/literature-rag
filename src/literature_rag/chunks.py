@@ -116,13 +116,18 @@ def chunk_paper(paper: Paper) -> list[Chunk]:
     ]
 
 
-def index_text(chunk: Chunk | ThesisChunk) -> str:
-    """The text that search indexes and embeds: "Title. Section. Text", without the parts a chunk lacks. Thesis chunks have no title.
+def index_parts(chunk: Chunk | ThesisChunk) -> tuple[str, str]:
+    """A chunk as search sees it, in two parts: the header "Title. Section.", without the parts a chunk lacks, and the text. Thesis chunks have no title.
 
-    This is the only place the header is made, so that BM25 and every embedder see the same text.
+    This is the only place the header is made, so that BM25 and every embedder see the same text. MedCPT reads the two parts as the (title, abstract) pair it was trained on; the others read them joined, as index_text gives them.
     """
     header = [part for part in (chunk.get("title", ""), chunk["section"]) if part]
-    return " ".join([part if part.endswith((".", "?", "!")) else f"{part}." for part in header] + [chunk["text"]])
+    return " ".join(part if part.endswith((".", "?", "!")) else f"{part}." for part in header), chunk["text"]
+
+
+def index_text(chunk: Chunk | ThesisChunk) -> str:
+    """The text that BM25 indexes and Qwen3 embeds: "Title. Section. Text"."""
+    return " ".join(part for part in index_parts(chunk) if part)
 
 
 def library_keys(papers: list[Paper]) -> dict[str, str]:
@@ -132,6 +137,11 @@ def library_keys(papers: list[Paper]) -> dict[str, str]:
 
 def load_papers() -> list[Paper]:
     return [json.loads(path.read_text(encoding="utf-8")) for path in sorted(config.PAPERS_DIR.glob("*.json"))]
+
+
+def read_jsonl(path: Path) -> list:
+    with path.open(encoding="utf-8") as handle:
+        return [json.loads(line) for line in handle]
 
 
 def write_jsonl(path: Path, records: list) -> None:

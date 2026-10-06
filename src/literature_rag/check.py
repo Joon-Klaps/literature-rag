@@ -10,7 +10,8 @@ from collections.abc import Callable
 
 import httpx
 
-from literature_rag import config
+from literature_rag import config, index
+from literature_rag.chunks import read_jsonl
 from literature_rag.models import cached_path, model_ids
 
 # Below this, the model downloads and the index may not fit.
@@ -82,6 +83,21 @@ def library() -> tuple[bool, str]:
     return True, f"{papers} papers in {config.PAPERS_DIR.name}/, up to date with the manuscripts"
 
 
+def vectors() -> tuple[bool, str]:
+    """Whether every chunk has a vector from every model, since search refuses to run on an index older than its chunks."""
+    gaps = []
+    for collection, path in config.COLLECTIONS.items():
+        if not path.is_file():
+            return False, f"no {path.name}; run literature-rag-chunk"
+        chunk_list = read_jsonl(path)
+        for model in config.EMBEDDING_MODELS:
+            if absent := index.missing(collection, model, chunk_list):
+                gaps.append(f"{absent} {collection} chunks without {model}")
+    if gaps:
+        return False, f"{'; '.join(gaps)}; run literature-rag-build"
+    return True, f"{' and '.join(config.COLLECTIONS)} embedded with {' and '.join(config.EMBEDDING_MODELS)}, up to date"
+
+
 CHECKS: list[tuple[str, Callable[[], tuple[bool, str]], bool]] = [
     ("thesis repository", thesis_repo, True),
     ("GROBID", grobid, True),
@@ -90,6 +106,7 @@ CHECKS: list[tuple[str, Callable[[], tuple[bool, str]], bool]] = [
     ("disk", disk, True),
     ("qmd baseline", qmd, False),
     ("library", library, False),
+    ("index", vectors, False),
 ]
 
 

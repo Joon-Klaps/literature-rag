@@ -1,16 +1,16 @@
-"""Add papers to the library from the command line: download them with the thesis repository's fetch script, then ingest and chunk them.
+"""Add papers to the library from the command line: download them with the thesis repository's fetch script, then ingest, chunk and embed them.
 
     literature-rag-add 10.1038/srep21977
     literature-rag-add --mode title "Spatial and temporal evolution of Lassa virus"
     literature-rag-add path/to/paper.pdf
 
-The arguments go unchanged to scripts/fetch_pubmed_pdf.py, so this accepts everything that script does, including --batch. Papers still enter the library only through that script: this command runs it in the thesis repository's own environment, then brings data/papers/ up to date, which reads only the papers that are new, and then redoes the chunks and the test pairs, which takes seconds. A paper downloaded by running the fetch script directly joins at the next `literature-rag-ingest` or `literature-rag-add`.
+The arguments go unchanged to scripts/fetch_pubmed_pdf.py, so this accepts everything that script does, including --batch. Papers still enter the library only through that script: this command runs it in the thesis repository's own environment, then brings data/papers/ up to date, which reads only the papers that are new, redoes the chunks and the test pairs, which takes seconds, and embeds the chunks whose text has no vector yet, which for one paper takes seconds too. A paper downloaded by running the fetch script directly joins at the next `literature-rag-ingest` or `literature-rag-add`.
 """
 
 import subprocess
 import sys
 
-from literature_rag import chunks, config
+from literature_rag import chunks, config, index
 from literature_rag.ingest import ingest
 
 
@@ -44,5 +44,7 @@ def main() -> None:
     # A paper the thesis cites adds test pairs as well as chunks, so the whole chunking report is worth seeing.
     print()
     print("\n".join(chunks.build()))
+    print()
+    print("\n".join(index.build(list(config.COLLECTIONS), list(config.EMBEDDING_MODELS))))
     print("\nRun literature-rag-ingest for the full ingestion report.")
     raise SystemExit(status)

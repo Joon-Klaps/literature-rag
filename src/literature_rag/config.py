@@ -32,7 +32,7 @@ THESIS_CHUNKS_FILE = CHUNKS_DIR / "thesis.jsonl"
 # Test questions drawn from the thesis. They quote unpublished chapters, so they stay under data/ too.
 EVAL_DIR = DATA_DIR / "eval"
 THESIS_PAIRS_FILE = EVAL_DIR / "thesis_pairs.jsonl"
-# Embedding matrices and other index files. Never committed.
+# Embedding matrices, one per collection and model, with the hash of the text behind each row. Never committed.
 INDEX_DIR = HOME / "index"
 # Aggregate evaluation numbers only, so these are committed.
 RESULTS_DIR = HOME / "results"
@@ -105,10 +105,43 @@ GROBID_PARAMS = {
     "includeRawCitations": "1",
 }
 
-# Semantic search runs every embedder below next to BM25. MedCPT is asymmetric: one encoder for queries, another for passages.
+# Semantic search runs every embedder below next to BM25. MedCPT is asymmetric: one encoder for queries, another for passages. The token limits are where each model cuts its input: Qwen3 reads up to 1024 tokens, more than any chunk needs; MedCPT was trained on queries of up to 64 tokens and articles of up to 512, which cuts the end off about 4% of the library's chunks. The index keeps a model's vectors only while its entry here is unchanged.
 EMBEDDING_MODELS = {
-    "qwen3": {"query": "Qwen/Qwen3-Embedding-0.6B", "passage": "Qwen/Qwen3-Embedding-0.6B"},
-    "medcpt": {"query": "ncbi/MedCPT-Query-Encoder", "passage": "ncbi/MedCPT-Article-Encoder"},
+    "qwen3": {
+        "query": "Qwen/Qwen3-Embedding-0.6B",
+        "passage": "Qwen/Qwen3-Embedding-0.6B",
+        "query_tokens": 1024,
+        "passage_tokens": 1024,
+    },
+    "medcpt": {
+        "query": "ncbi/MedCPT-Query-Encoder",
+        "passage": "ncbi/MedCPT-Article-Encoder",
+        "query_tokens": 64,
+        "passage_tokens": 512,
+    },
 }
-# A cross-encoder that rereads each (question, passage) pair of the fused shortlist and reorders it.
+# Qwen3-Embedding reads each query after an instruction that names the task; passages carry none. Searching the thesis is a different task from finding a paper's support for a claim, so each collection has its own. MedCPT takes no instruction.
+QUERY_INSTRUCTIONS = {
+    "library": "Given a claim from a PhD thesis, retrieve the passage from a scientific paper that supports it",
+    "thesis": "Given a claim or a passage from a scientific paper, retrieve the paragraph of a PhD thesis that discusses it",
+}
+# Passages per forward pass. On the M1 Max, Qwen3 is fastest at 8 (about 11 chunks a second, so 15 minutes for the library) and MedCPT at 16 (about 55 a second); larger batches carry more padding.
+EMBEDDING_BATCH = {"qwen3": 8, "medcpt": 16}
+# The index embeds in rounds of this many passages and saves after each, so an interrupted build loses one round, not the whole run.
+EMBEDDING_ROUND = 512
+
+# A cross-encoder that rereads each (question, passage) pair of the fused shortlist and reorders it. With its header, no chunk passes about 600 tokens, so 1024 cuts nothing; 50 pairs take about 2.6 seconds either way.
 RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+RERANKER_MAX_TOKENS = 1024
+RERANKER_BATCH = 16
+
+# The two things search can look in, and the chunk file each is read from. Their vectors live in INDEX_DIR/<collection>/.
+COLLECTIONS = {"library": LIBRARY_CHUNKS_FILE, "thesis": THESIS_CHUNKS_FILE}
+# Each method hands this many candidates to fusion, ranked best first.
+CANDIDATES = 100
+# Reciprocal rank fusion scores a passage as the sum of 1 / (RRF_K + rank) over the rankings it appears in. 60 is the constant of the original paper (Cormack and others, 2009), which damps the difference between the first few ranks.
+RRF_K = 60
+# The reranker reads only the top of the fused ranking: it is precise, but too slow for more.
+RERANK_DEPTH = 50
+# What search runs when it is not told otherwise: "bm25" and the names in EMBEDDING_MODELS. Block 5 replaces this with the configuration that wins the evaluation.
+DEFAULT_METHODS = ("bm25", "qwen3", "medcpt")

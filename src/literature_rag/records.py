@@ -146,3 +146,15 @@ class Pair(TypedDict):
     key: str
     # The numbers in the sentence, with thin spaces and thousands separators taken out, as in "10000" or "0.5".
     numbers: list[str]
+
+
+class Hit(TypedDict):
+    """One passage that search returns, as block 4's search() gives it."""
+
+    # From 1, in the order search returns the hits.
+    rank: int
+    # The score the final order rests on: the reranker's probability when the shortlist was reranked, the fused score when several methods ran, and otherwise the one method's own score (BM25, or the inner product of the vectors).
+    score: float
+    # Where each method placed this chunk among its candidates, from 1, and "fused" for its place after fusion. A method that did not find it among its config.CANDIDATES is missing.
+    ranks: dict[str, int]
+    chunk: Chunk | ThesisChunk

@@ -1,4 +1,4 @@
-"""Text clean-up shared by the JATS, TEI and Markdown parsers: citation markers, headings and whitespace."""
+"""Text clean-up shared by the JATS, TEI and Markdown parsers (citation markers, headings and whitespace), and the sentence splitter that the chunker and the thesis reader share."""
 
 import re
 from collections.abc import Callable
@@ -7,8 +7,10 @@ from lxml import etree
 
 from literature_rag import config
 
-# A numeric citation marker such as "12", "3–5", "[2]" or "(4, 7)". Its text means nothing once the citation is kept as a reference id, so it is taken out.
-NUMERIC_MARKER = re.compile(r"[\[(]?\s*\d+[a-z]?(\s*[,–\-−—]\s*\d+[a-z]?)*\s*[\])]?")
+# A numeric citation marker such as "12", "3–5", "[2]" or "(4, 7)". Its text means nothing once the citation is kept as a reference id, so it is taken out. GROBID often puts the separator inside the link, as in "13," or "[10,", so one may follow.
+NUMERIC_MARKER = re.compile(r"[\[(]?\s*\d+[a-z]?(\s*[,–\-−—]\s*\d+[a-z]?)*\s*[\])]?[\s,;]*")
+# A year on its own, as in "Delwart, <xref>2007</xref>": author-year styles often link only the year. It is part of the sentence, so it stays, as the rest of an author-year marker does.
+YEAR_MARKER = re.compile(r"[\[(]?\s*(?:19|20)\d{2}[a-z]?\s*[\])]?[\s,;]*")
 # What is left of "[1, 2]" or "(3–5)" once the markers inside are gone.
 EMPTY_BRACKETS = re.compile(r"[\[(][\s,;–\-−—]*[\])]")
 SPACE_BEFORE_PUNCTUATION = re.compile(r"\s+([,.;:)\]])")
@@ -21,10 +23,43 @@ DASHES = {"–", "-", "−", "—"}
 SEPARATOR = re.compile(r"[\s,;–\-−—]*")
 # Some publishers put an invisible zero-width space in headings.
 ZERO_WIDTH_SPACE = "\u200b"
+# A full stop, question mark or exclamation mark, any closing quotes or brackets after it, and the space before the next sentence, which must not start with a lowercase letter.
+SENTENCE_END = re.compile(r"[.!?][\"'\u201d\u2019)\]]*\s+(?![a-z])")
+# Single letters joined by full stops, as in "e.g.", "i.e." and "U.S.", once lowercased and without the last full stop. A number such as "5.2" does not match, so "was 5.2. Then" still splits.
+LETTERS_AND_STOPS = re.compile(r"(?:[a-z]\.)+[a-z]")
+# Words that take a full stop without ending a sentence, lowercased and without that full stop. Single letters, such as the initial in "M. natalensis", are recognised without a list.
+ABBREVIATIONS = {
+    "al",
+    "approx",
+    "ca",
+    "cf",
+    "dr",
+    "eq",
+    "eqs",
+    "fig",
+    "figs",
+    "no",
+    "nos",
+    "prof",
+    "ref",
+    "refs",
+    "resp",
+    "sp",
+    "spp",
+    "ssp",
+    "st",
+    "suppl",
+    "tab",
+    "var",
+    "viz",
+    "vol",
+    "vs",
+}
 
 
 def is_numeric_marker(text: str) -> bool:
-    return bool(NUMERIC_MARKER.fullmatch(text.strip()))
+    marker = text.strip()
+    return bool(NUMERIC_MARKER.fullmatch(marker)) and not YEAR_MARKER.fullmatch(marker)
 
 
 def tidy(text: str) -> str:
@@ -40,6 +75,20 @@ def heading(title: str) -> str:
     """A section title as stored: without its number, zero-width spaces or a final full stop or colon."""
     title = " ".join(title.replace(ZERO_WIDTH_SPACE, "").split())
     return HEADING_NUMBER.sub("", title).rstrip(".:").strip()
+
+
+def sentences(passage: str) -> list[str]:
+    """Split running text at sentence ends, but not after an abbreviation such as "et al.", "Fig." or "e.g.", or after an initial."""
+    pieces, start = [], 0
+    for end in SENTENCE_END.finditer(passage):
+        words = passage[start : end.start() + 1].split()
+        last = words[-1].lstrip("([\"'“‘").rstrip(".!?").lower() if words else ""
+        if last in ABBREVIATIONS or LETTERS_AND_STOPS.fullmatch(last) or (len(last) == 1 and last.isalpha()):
+            continue
+        pieces.append(passage[start : end.end()].strip())
+        start = end.end()
+    pieces.append(passage[start:].strip())
+    return [piece for piece in pieces if piece]
 
 
 def is_boilerplate(title: str) -> bool:

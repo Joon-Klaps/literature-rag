@@ -29,9 +29,10 @@ The thesis repository is read from `~/Desktop/School/PhD/phd-thesis`; set `THESI
 
 ```bash
 uv run literature-rag-ingest   # structured text for every paper in the thesis repository's data/manuscripts
+uv run literature-rag-chunk    # passages of the papers and of the thesis, and the test questions
 ```
 
-The first run downloads Europe PMC's XML and sends the other PDFs to GROBID, which takes about an hour, mostly GROBID looking each reference up in Crossref. Everything it downloads or computes is cached under `data/raw/`, so a later run only does the work for papers it has not seen and finishes in seconds otherwise.
+The first ingestion downloads Europe PMC's XML and sends the other PDFs to GROBID, which takes about an hour, mostly GROBID looking each reference up in Crossref. Everything it downloads or computes is cached under `data/raw/`, so a later run only does the work for papers it has not seen and finishes in seconds otherwise. Chunking takes seconds and is redone in full each time.
 
 To use the commands from any directory, install them once as a uv tool. The install is editable, so it follows the code in this repository, and the lock file keeps its versions identical to the project's:
 
@@ -40,14 +41,14 @@ uv export --frozen --no-hashes --no-emit-project --no-dev -o /tmp/literature-rag
 uv tool install --editable . -c /tmp/literature-rag-constraints.txt
 ```
 
-Then a new paper goes into the library with one command, which takes the same arguments as the thesis repository's `scripts/fetch_pubmed_pdf.py`, runs that script, and ingests what it downloaded:
+Then a new paper goes into the library with one command, which takes the same arguments as the thesis repository's `scripts/fetch_pubmed_pdf.py`, runs that script, ingests what it downloaded and redoes the chunks:
 
 ```bash
 literature-rag-add 10.1038/srep21977
 literature-rag-add --mode title "Spatial and temporal evolution of Lassa virus"
 ```
 
-Papers still enter the library only through the fetch script. One fetched by running the script directly joins at the next `literature-rag-ingest`. Rerun the two install lines after a change to the dependencies or to the commands in `pyproject.toml`.
+Papers still enter the library only through the fetch script. One fetched by running the script directly joins at the next `literature-rag-ingest` and `literature-rag-chunk`. Rerun the two install lines, with `--reinstall` added to the second, after a change to the dependencies or to the commands in `pyproject.toml`.
 
 ## What is not in this repository
 

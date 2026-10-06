@@ -7,6 +7,8 @@ from typing import Literal, TypedDict
 
 # Where a paper's structured text came from: the publisher's XML via Europe PMC, GROBID's reading of the PDF, or, when both fail, the Markdown the fetch script extracted with pypdf.
 Source = Literal["jats", "grobid", "markdown"]
+# What part of a paper a library chunk holds.
+ChunkKind = Literal["abstract", "body", "caption"]
 
 
 class BibEntry(TypedDict):
@@ -92,3 +94,55 @@ class Paper(ParsedText):
     citable: bool
     source: Source
     source_file: str
+
+
+class Chunk(TypedDict):
+    """One passage of a paper, the unit that library search ranks, as block 3 writes it to data/chunks/library.jsonl."""
+
+    # "<paper_id>#<n>", numbered in reading order from 0, so the neighbours of chunk n are n - 1 and n + 1.
+    chunk_id: str
+    paper_id: str
+    key: str | None
+    citable: bool
+    title: str
+    year: int | None
+    doi: str | None
+    # The section heading for body text, "Abstract" for the abstract, and the label ("Fig. 1") for a caption.
+    section: str
+    kind: ChunkKind
+    text: str
+    # The references this passage cites, resolved from the paper's reference list. A paragraph cut in pieces gives each piece all of its references, since the parsers keep citations per paragraph, not per sentence.
+    cites: list[Reference]
+
+
+class ThesisChunk(TypedDict):
+    """One paragraph or caption of the thesis, as block 3 writes it to data/chunks/thesis.jsonl."""
+
+    # "<file stem>:L<start>-<end>", such as "02_introduction:L23-25".
+    chunk_id: str
+    # Relative to the thesis repository, as in "chapters/02_introduction/02_introduction.tex".
+    file: str
+    line_start: int
+    line_end: int
+    # The headings above the text, from \chapter down to \subsubsection, joined as in "Introduction > Lassa fever".
+    section: str
+    kind: Literal["paragraph", "caption"]
+    # Plain text, with the citation commands taken out.
+    text: str
+    # The citation keys of every \cite, \citep and \citet in the block, in order of first appearance.
+    keys: list[str]
+    # A hash of the block's lines as they stand in the file, comments included, to tell when a paragraph has changed.
+    hash: str
+
+
+class Pair(TypedDict):
+    """A test question from the thesis: a sentence that cites one paper of the library, which is the answer."""
+
+    # "<chunk_id>/<n>", the paragraph and the position of the sentence in it, from 0.
+    pair_id: str
+    chunk_id: str
+    # The sentence as plain text, without its citation.
+    query: str
+    key: str
+    # The numbers in the sentence, with thin spaces and thousands separators taken out, as in "10000" or "0.5".
+    numbers: list[str]

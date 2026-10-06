@@ -1,6 +1,6 @@
 # CLAUDE.md — literature-rag
 
-Hybrid retrieval over Joon's PhD thesis and the papers it cites, served to Claude Code over MCP. The background and the design decisions are in `HANDOFF-literature-rag.md` in the thesis repository (`~/Desktop/School/PhD/phd-thesis`). The build follows `PLAN.md` block by block: read it first, and log progress at its end.
+Hybrid retrieval over Joon's PhD thesis and the papers it cites, served to Claude Code over MCP. The background and the design decisions are in `HANDOFF-literature-rag.md` in the thesis repository (`~/Desktop/School/PhD/phd-thesis`). The build follows `PLAN.md` block by block: read it first, and log progress at its end. If `HANDOFF.md` exists, read it next: it holds the state the last session left behind.
 
 ## Rules
 

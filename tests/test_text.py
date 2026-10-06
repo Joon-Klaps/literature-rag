@@ -32,6 +32,22 @@ def test_tidy_removes_what_markers_leave():
     assert text.tidy("agree [, ] and (–) so .") == "agree and so."
     assert text.is_numeric_marker("[12–14]") and text.is_numeric_marker("3, 5")
     assert not text.is_numeric_marker("Smith et al., 2019")
+    # GROBID's links with the separator inside them.
+    assert text.is_numeric_marker("13,") and text.is_numeric_marker("[10,") and text.is_numeric_marker("19]")
+    # A year that author-year styles link on its own is not a reference number.
+    assert not text.is_numeric_marker("2007") and not text.is_numeric_marker("(2019a)")
+
+
+def test_sentences_end_at_full_stops_but_not_after_abbreviations():
+    passage = "Virus was found in M. natalensis by Doe et al. (2019). Fig. 2 shows e.g. this. The mean was 5.2. Next."
+    assert text.sentences(passage) == [
+        "Virus was found in M. natalensis by Doe et al. (2019).",
+        "Fig. 2 shows e.g. this.",
+        "The mean was 5.2.",
+        "Next.",
+    ]
+    # A lowercase word after a full stop does not start a sentence.
+    assert text.sentences("Data from approx. ten sites were used.") == ["Data from approx. ten sites were used."]
 
 
 def test_reference_ranges():

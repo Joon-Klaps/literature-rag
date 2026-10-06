@@ -26,6 +26,12 @@ MANIFEST_FILE = DATA_DIR / "manifest.json"
 JATS_DIR = DATA_DIR / "raw" / "jats"
 TEI_DIR = DATA_DIR / "raw" / "tei"
 PAPERS_DIR = DATA_DIR / "papers"
+CHUNKS_DIR = DATA_DIR / "chunks"
+LIBRARY_CHUNKS_FILE = CHUNKS_DIR / "library.jsonl"
+THESIS_CHUNKS_FILE = CHUNKS_DIR / "thesis.jsonl"
+# Test questions drawn from the thesis. They quote unpublished chapters, so they stay under data/ too.
+EVAL_DIR = DATA_DIR / "eval"
+THESIS_PAIRS_FILE = EVAL_DIR / "thesis_pairs.jsonl"
 # Embedding matrices and other index files. Never committed.
 INDEX_DIR = HOME / "index"
 # Aggregate evaluation numbers only, so these are committed.
@@ -68,6 +74,18 @@ BOILERPLATE_HEADINGS = (
     r"ethics approval and consent to participate|informed consent( statement)?|consent( for publication| to (publish|participate))?",
     r"inclusion and ethics|institutional review board.*|role of the funder|orcid( ids?)?",
 )
+
+# Paragraphs of one section are merged into a chunk until the next would take it past CHUNK_WORDS. About 300 words is 400 tokens, which with the title and section in front still fits MedCPT's 512.
+CHUNK_WORDS = 300
+# A paragraph, abstract or caption longer than this is cut at sentence ends into pieces of about equal length, each under CHUNK_WORDS. Between the two limits a paragraph stays whole.
+SPLIT_WORDS = 400
+
+# Chapter files the thesis collection leaves out: the CV, the publication list, and the Dutch summary, which repeats the English one.
+THESIS_EXCLUDED = {
+    "chapters/curriculum/curriculum.tex",
+    "chapters/publications/publications.tex",
+    "chapters/01_abstract_nl/01_abstract_nl.tex",
+}
 
 EUROPE_PMC_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 # Europe PMC is shared infrastructure, so only a few downloads run at once.

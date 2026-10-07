@@ -131,3 +131,27 @@ def test_describe(collection):
     first, second = search.describe(hit, words=2).splitlines()
     assert "Doe2015-valley (2015) | Results | bm25 1" in first
     assert second.strip() == "Rainfall peaked ..."
+
+
+def test_neighbours_stay_within_the_paper_or_the_chapter():
+    library = search.Collection(
+        "library",
+        [chunk(0, "One."), chunk(1, "Two."), {**chunk(0, "Other."), "chunk_id": "Roe2010#0", "paper_id": "Roe2010"}],
+        {},
+    )
+    assert [c["chunk_id"] for c in search.neighbours(library, "Doe2015-valley#0", 1)] == [
+        "Doe2015-valley#0",
+        "Doe2015-valley#1",
+    ]
+    assert [c["chunk_id"] for c in search.neighbours(library, "Doe2015-valley#1", 0)] == ["Doe2015-valley#1"]
+    assert [c["chunk_id"] for c in search.neighbours(library, "Roe2010#0", 2)] == ["Roe2010#0"]
+    # A thesis chapter runs on across files, as an \input file does in LaTeX.
+    paragraphs = [
+        {"chunk_id": "a:L1-1", "file": "a.tex", "section": "Valley", "text": "One."},
+        {"chunk_id": "b:L1-1", "file": "b.tex", "section": "Valley > Rain", "text": "Two."},
+        {"chunk_id": "b:L3-3", "file": "b.tex", "section": "Plains", "text": "Three."},
+    ]
+    thesis = search.Collection("thesis", paragraphs, {})
+    assert [c["chunk_id"] for c in search.neighbours(thesis, "a:L1-1", 2)] == ["a:L1-1", "b:L1-1"]
+    with pytest.raises(KeyError):
+        search.neighbours(thesis, "c:L1-1", 1)

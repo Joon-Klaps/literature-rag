@@ -2,7 +2,7 @@
 
 Hybrid retrieval over a PhD thesis on Lassa virus genomic surveillance (KU Leuven) and the roughly 300 papers it draws on, served to Claude Code as an MCP server. It was built for the jury revisions: finding the source of a claim, checking a number against the paper it came from, and finding where a new paper belongs in the thesis.
 
-Status: under construction. Retrieval and its evaluation are built; the MCP server is next.
+Status: under construction. Retrieval, its evaluation and the MCP server are built; the write-up is next.
 
 ## How it works
 
@@ -66,6 +66,22 @@ uv run literature-rag-eval --no-qmd   # the same without qmd
 ```
 
 The questions are the thesis sentences that cite exactly one paper of the library, each answered by that paper; about ten literature points from the review rounds, each with the papers that answer it; and twenty paragraph summaries from the thesis repository's `PARAGRAPH-INDEX.md`, searched in the thesis itself. Each configuration (BM25, each embedder, their fusions, and the best fusion reranked) is scored by hit@1, hit@5 and MRR@10 at the level of papers, with bootstrap intervals, against qmd's own keyword search and its full hybrid search over the unmodified Markdown. The first run takes about an hour, nearly all of it `qmd query` and the reranker; their results are kept under `data/eval/runs/`, so a second run takes about a minute.
+
+## Using it from Claude Code
+
+The MCP server `thesis-library` is registered once, from the thesis repository, so that it is there in every Claude Code session opened in it:
+
+```bash
+claude mcp add thesis-library --scope local -- uv --directory literature-rag run literature-rag
+```
+
+It has three tools, all read-only:
+
+- `search_library(question, k=8, citable_only=True)`: passages from the papers, each with its citation key, title, year, DOI, section, text, the references it cites, a relevance score from 0 to 1, and the path of the paper's Markdown in the thesis repository, next to its PDF, to check the passage against.
+- `search_thesis(text, k=5)`: paragraphs and captions of the thesis, each with its file, line range, section path and cited keys, and `current`, false when those lines have changed since the thesis was indexed.
+- `get_context(chunk_id, window=1)`: a hit with the chunks around it, from the same paper or the same chapter.
+
+A passage is a lead to check against the paper, and a thesis paragraph is never evidence for a claim; the tool descriptions say both to the model. The first call takes about ten seconds while the models load, later calls about three. The server notices when `literature-rag-chunk` or `literature-rag-build` has changed its files and loads them again, so a paper added during a session is found without a restart; after a change to the code, reconnect it with `/mcp`. After editing the thesis, run `literature-rag-chunk` and `literature-rag-build` to bring its line numbers up to date.
 
 ## What is not in this repository
 

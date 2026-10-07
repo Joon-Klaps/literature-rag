@@ -92,6 +92,15 @@ def test_hash_follows_the_lines_comments_included(chunks):
     assert after["text"] == chunks["rodents:L7-10"]["text"] and after["hash"] != first
 
 
+def test_is_current_while_the_lines_stand(chunks):
+    source = (FIXTURES / "chapter.tex").read_text(encoding="utf-8")
+    chunk = chunks["rodents:L7-10"]
+    assert thesis.is_current(chunk, source)
+    assert not thesis.is_current(chunk, source.replace("trailing note", "trailing remark"))
+    # A line added above moves the paragraph, so its old line range no longer holds it.
+    assert not thesis.is_current(chunk, "\n" + source)
+
+
 def test_pairs(parsed):
     _, sentences = parsed
     pairs = thesis.make_pairs(sentences, {"doe2015": "Doe2015", "roe2019": "Roe2019"})

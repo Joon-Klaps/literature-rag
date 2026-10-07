@@ -20,6 +20,7 @@ def paper():
         "title": "Rodents of a made-up valley",
         "year": 2015,
         "doi": "10.1000/valley",
+        "source_file": "Doe 2015 - Rodents of a made-up valley.md",
         "abstract": words(80, "abstract"),
         "sections": [
             {

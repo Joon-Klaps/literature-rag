@@ -3,7 +3,7 @@
 Each stage writes JSON under data/, and the next stage reads it back, so these TypedDicts are the contract between them. They describe plain dicts: nothing checks them at run time, but an editor and a type checker do.
 """
 
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 # Where a paper's structured text came from: the publisher's XML via Europe PMC, GROBID's reading of the PDF, or, when both fail, the Markdown the fetch script extracted with pypdf.
 Source = Literal["jats", "grobid", "markdown"]
@@ -107,6 +107,8 @@ class Chunk(TypedDict):
     title: str
     year: int | None
     doi: str | None
+    # The paper's Markdown file in the thesis repository's data/manuscripts, the copy ingestion kept; its PDF has the same name.
+    source_file: str
     # The section heading for body text, "Abstract" for the abstract, and the label ("Fig. 1") for a caption.
     section: str
     kind: ChunkKind
@@ -170,3 +172,39 @@ class Hit(TypedDict):
     # Where each method placed this chunk among its candidates, from 1, and "fused" for its place after fusion. A method that did not find it among its config.CANDIDATES is missing.
     ranks: dict[str, int]
     chunk: Chunk | ThesisChunk
+
+
+class LibraryPassage(TypedDict):
+    """One passage of a paper as the MCP server returns it, from search_library and get_context: where it comes from, its text, and the references it cites."""
+
+    chunk_id: str
+    key: str | None
+    citable: bool
+    title: str
+    year: int | None
+    doi: str | None
+    # The paper's Markdown file, relative to the thesis repository, as in "data/manuscripts/Garry 2023 - Lassa fever - the road ahead.md". The PDF has the same name with .pdf.
+    manuscript: str
+    section: str
+    text: str
+    cites: list[Reference]
+    # The score search ranked it by, which with the reranker is its relevance from 0 to 1. Near 0 means off the subject, but a high score only means on it: a question about a phase 3 Lassa vaccine trial, which has never been run, scores 0.95. Only search_library gives it.
+    score: NotRequired[float]
+
+
+class ThesisParagraph(TypedDict):
+    """One paragraph or caption of the thesis as the MCP server returns it, from search_thesis and get_context."""
+
+    chunk_id: str
+    # Relative to the thesis repository, as in "chapters/02_introduction/02_introduction.tex".
+    file: str
+    line_start: int
+    line_end: int
+    section: str
+    kind: Literal["paragraph", "caption"]
+    text: str
+    keys: list[str]
+    # False when those lines of the file have changed since literature-rag-chunk read them, so the line range no longer holds.
+    current: bool
+    # As in LibraryPassage: only search_thesis gives it.
+    score: NotRequired[float]

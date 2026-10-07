@@ -107,6 +107,7 @@ def chunk_paper(paper: Paper) -> list[Chunk]:
             title=paper["title"],
             year=paper["year"],
             doi=paper["doi"],
+            source_file=paper["source_file"],
             section=section,
             kind=kind,
             text=passage["text"],

@@ -153,6 +153,10 @@ RERANK_DEPTH = 50
 DEFAULT_METHODS = ("bm25", "qwen3")
 DEFAULT_RERANK = True
 
+# The MCP server's limits on what one call returns. A passage with its references is about a thousand tokens, so twenty is about as much as a call should put in the model's context; a window of five reads eleven chunks, about a section.
+SERVER_MAX_HITS = 20
+SERVER_MAX_WINDOW = 5
+
 # The configurations the evaluation compares, each a list of methods whose rankings are fused. The best fused one is also run with the reranker.
 EVAL_CONFIGURATIONS = (
     ("bm25",),

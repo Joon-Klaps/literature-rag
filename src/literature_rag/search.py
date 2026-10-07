@@ -2,7 +2,7 @@
 
     uv run literature-rag-search "case fatality among hospitalised Lassa fever patients" --methods bm25,qwen3,medcpt --rerank
 
-A Collection holds the chunks of the library or the thesis, a BM25 index over their text and their vectors, and is loaded once. bm25(), dense(), rrf() and cross_encode() are the steps, and search() puts them together. The command searches each question it is given and prints the time each step took and the hits, with their key, section and opening words.
+A Collection holds the chunks of the library or the thesis, a BM25 index over their text and their vectors, and is loaded once. bm25(), dense(), rrf() and cross_encode() are the steps, and search() puts them together; neighbours() reads the chunks around a hit. The command searches each question it is given and prints the time each step took and the hits, with their key, section and opening words.
 """
 
 import argparse
@@ -33,6 +33,8 @@ class Collection:
     def __init__(self, name: str, chunk_list: list[Chunk] | list[ThesisChunk], vectors: dict[str, np.ndarray]) -> None:
         self.name = name
         self.chunks = chunk_list
+        # A chunk's row by its id, to find the chunks around it.
+        self.rows = {chunk["chunk_id"]: row for row, chunk in enumerate(chunk_list)}
         self.vectors = vectors
         self.bm25 = BM25Okapi([tokenize(chunks.index_text(chunk)) for chunk in chunk_list])
 
@@ -135,6 +137,21 @@ def search(
         )
         for rank, (row, score) in enumerate(final[:k], start=1)
     ]
+
+
+def document(chunk: Chunk | ThesisChunk) -> str:
+    """What a chunk is part of: its paper in the library, and its chapter in the thesis, named by the first part of its section path. A chapter can run over several files, through \\input."""
+    return chunk["paper_id"] if "paper_id" in chunk else chunk["section"].split(" > ")[0]
+
+
+def neighbours(collection: Collection, chunk_id: str, window: int) -> list[Chunk] | list[ThesisChunk]:
+    """The chunk and up to window chunks on either side of it, in reading order, from the same paper or the same chapter. Raises KeyError for an unknown id.
+
+    Both chunk files are in reading order, the library paper by paper and the thesis as LaTeX reads it, so the neighbours are the rows around the chunk's own.
+    """
+    row = collection.rows[chunk_id]
+    around = collection.chunks[max(0, row - window) : row + window + 1]
+    return [chunk for chunk in around if document(chunk) == document(collection.chunks[row])]
 
 
 def describe(hit: Hit, words: int = 30) -> str:

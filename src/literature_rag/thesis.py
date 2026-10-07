@@ -300,6 +300,17 @@ def numbers(sentence: str) -> list[str]:
     return list(dict.fromkeys(found))
 
 
+def block_hash(raw: str) -> str:
+    """A short fingerprint of a block's lines as they stand in the file, comments included."""
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def is_current(chunk: ThesisChunk, source: str) -> bool:
+    """Whether the chunk's line range in the file's text as it stands now still holds the lines the chunk was made from. An edit to the paragraph makes it false, and so does one above it that adds or removes lines."""
+    lines = source.split("\n")
+    return block_hash("\n".join(lines[chunk["line_start"] - 1 : chunk["line_end"]])) == chunk["hash"]
+
+
 def parse_thesis(sources: dict[str, str]) -> tuple[list[ThesisChunk], list[Sentence]]:
     """The thesis's paragraphs and captions as chunks, and every sentence of its paragraphs with the keys it cites.
 
@@ -328,7 +339,7 @@ def parse_thesis(sources: dict[str, str]) -> tuple[list[ThesisChunk], list[Sente
             kind=kind,
             text=plain(body),
             keys=keys_in(rendered),
-            hash=hashlib.sha256(block.raw.encode("utf-8")).hexdigest()[:16],
+            hash=block_hash(block.raw),
         )
         chunks.append(chunk)
         if kind == "paragraph":

@@ -9,6 +9,7 @@ dependencies = [
     "lxml>=6.1.3",
     "mcp[cli]>=2.3",
     "numpy>=2.5.3",
+    "pydantic>=2.13",
     "pylatexenc>=2.11",
     "rank-bm25>=0.2.2",
     "sentence-transformers>=6.1.0",
@@ -23,6 +24,7 @@ literature-rag-chunk = "literature_rag.chunks:main"
 literature-rag-build = "literature_rag.index:main"
 literature-rag-search = "literature_rag.search:main"
 literature-rag-eval = "literature_rag.evaluate:main"
+literature-rag = "literature_rag.server:main"
 
 [build-system]
 requires = ["uv_build>=0.11.0,<0.12"]

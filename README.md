@@ -2,7 +2,7 @@
 
 Hybrid retrieval over a PhD thesis on Lassa virus genomic surveillance (KU Leuven) and the roughly 300 papers it draws on, served to Claude Code as an MCP server. It was built for the jury revisions: finding the source of a claim, checking a number against the paper it came from, and finding where a new paper belongs in the thesis.
 
-Status: under construction, following [PLAN.md](PLAN.md).
+Status: under construction. Retrieval and its evaluation are built; the MCP server is next.
 
 ## How it works
 
@@ -57,6 +57,15 @@ literature-rag-add --mode title "Spatial and temporal evolution of Lassa virus"
 ```
 
 Papers still enter the library only through the fetch script. One fetched by running the script directly joins at the next `literature-rag-ingest`, `literature-rag-chunk` and `literature-rag-build`. Rerun the two install lines, with `--reinstall` added to the second, after a change to the dependencies or to the commands in `pyproject.toml`.
+
+## Evaluating
+
+```bash
+uv run literature-rag-eval            # every configuration, the reranker and the qmd baselines; writes results/eval.md and results/eval.json
+uv run literature-rag-eval --no-qmd   # the same without qmd
+```
+
+The questions are the thesis sentences that cite exactly one paper of the library, each answered by that paper; about ten literature points from the review rounds, each with the papers that answer it; and twenty paragraph summaries from the thesis repository's `PARAGRAPH-INDEX.md`, searched in the thesis itself. Each configuration (BM25, each embedder, their fusions, and the best fusion reranked) is scored by hit@1, hit@5 and MRR@10 at the level of papers, with bootstrap intervals, against qmd's own keyword search and its full hybrid search over the unmodified Markdown. The first run takes about an hour, nearly all of it `qmd query` and the reranker; their results are kept under `data/eval/runs/`, so a second run takes about a minute.
 
 ## What is not in this repository
 

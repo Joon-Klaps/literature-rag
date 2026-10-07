@@ -32,6 +32,12 @@ THESIS_CHUNKS_FILE = CHUNKS_DIR / "thesis.jsonl"
 # Test questions drawn from the thesis. They quote unpublished chapters, so they stay under data/ too.
 EVAL_DIR = DATA_DIR / "eval"
 THESIS_PAIRS_FILE = EVAL_DIR / "thesis_pairs.jsonl"
+# Literature points from the review rounds, each with the papers that answer it: drafted by Claude, confirmed by Joon.
+REALISTIC_FILE = EVAL_DIR / "realistic.jsonl"
+# The rankings that are slow to make (the reranker's scores, qmd's results), kept so that a second run takes seconds. Delete the folder to make them again.
+RUNS_DIR = EVAL_DIR / "runs"
+# The paragraph summaries that the thesis-index skill wrote, the questions of the thesis check.
+PARAGRAPH_INDEX_FILE = THESIS_REPO / "PARAGRAPH-INDEX.md"
 # Embedding matrices, one per collection and model, with the hash of the text behind each row. Never committed.
 INDEX_DIR = HOME / "index"
 # Aggregate evaluation numbers only, so these are committed.
@@ -141,7 +147,33 @@ COLLECTIONS = {"library": LIBRARY_CHUNKS_FILE, "thesis": THESIS_CHUNKS_FILE}
 CANDIDATES = 100
 # Reciprocal rank fusion scores a passage as the sum of 1 / (RRF_K + rank) over the rankings it appears in. 60 is the constant of the original paper (Cormack and others, 2009), which damps the difference between the first few ranks.
 RRF_K = 60
-# The reranker reads only the top of the fused ranking: it is precise, but too slow for more.
+# The reranker reads only the top of the fused ranking: it is precise, but too slow for more. In block 5, 50 did better than 20 and as well as 100, at half the time of 100.
 RERANK_DEPTH = 50
-# What search runs when it is not told otherwise: "bm25" and the names in EMBEDDING_MODELS. Block 5 replaces this with the configuration that wins the evaluation.
-DEFAULT_METHODS = ("bm25", "qwen3", "medcpt")
+# What search runs when it is not told otherwise, as block 5 chose it (results/eval.md): BM25 and Qwen3 fused, with the fused top RERANK_DEPTH reranked. MedCPT made the fusion worse (MRR@10 0.62 with it, 0.64 without), and the reranker lifted it to 0.67 and the share of sentences whose numbers the top passages hold from 0.45 to 0.58, for about 2.5 seconds a question.
+DEFAULT_METHODS = ("bm25", "qwen3")
+DEFAULT_RERANK = True
+
+# The configurations the evaluation compares, each a list of methods whose rankings are fused. The best fused one is also run with the reranker.
+EVAL_CONFIGURATIONS = (
+    ("bm25",),
+    ("qwen3",),
+    ("medcpt",),
+    ("bm25", "qwen3"),
+    ("bm25", "medcpt"),
+    ("bm25", "qwen3", "medcpt"),
+)
+# How deep the reranker reads the fused ranking. One pass scores the deepest shortlist, and the shallower ones reuse its scores, since the reranker scores each passage on its own.
+EVAL_RERANK_DEPTHS = (20, 50, 100)
+# A query scores hit@k for each k here (the right paper among the first k) and the reciprocal rank of the right paper within the first EVAL_MRR_DEPTH, 0 below it.
+EVAL_HIT_AT = (1, 5)
+EVAL_MRR_DEPTH = 10
+# Bootstrap intervals: resample the queries with replacement this many times, with a fixed seed so that the intervals are the same on every run.
+BOOTSTRAP_RESAMPLES = 1000
+BOOTSTRAP_SEED = 2026
+# The number check looks for a pair's numbers in this many of the top chunks, among those from the right paper.
+NUMBER_CHECK_DEPTH = 5
+# The thesis check: this many paragraph summaries from PARAGRAPH-INDEX.md, drawn with the bootstrap seed among those whose cited keys pick out exactly one current paragraph.
+THESIS_CHECK_SIZE = 20
+# qmd, the finished system to beat: its BM25 search and its full hybrid query over the unmodified Markdown, each asked for this many documents.
+QMD_COLLECTION = "papers"
+QMD_RESULTS = 10

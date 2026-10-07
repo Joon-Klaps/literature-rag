@@ -91,7 +91,7 @@ def test_dense(collection):
 
 
 def test_search_one_method(collection):
-    hits = search.search(collection, "rainfall village", methods=["bm25"])
+    hits = search.search(collection, "rainfall village", methods=["bm25"], rerank=False)
     assert rows(hits) == [3, 0]
     # Without fusion, the score is the method's own and there is no fused place.
     assert hits[0]["score"] == search.bm25(collection, "rainfall village")[0][1]
@@ -101,7 +101,7 @@ def test_search_one_method(collection):
 
 def test_search_fused(collection):
     timings = {}
-    hits = search.search(collection, "rainfall village", k=3, methods=["bm25", "qwen3"], timings=timings)
+    hits = search.search(collection, "rainfall village", k=3, methods=["bm25", "qwen3"], timings=timings, rerank=False)
     # BM25 gives 3, 0; the vectors give 1, 3, 0, 2. Chunk 3 is first and second, chunk 0 second and third, chunk 1 only first.
     assert rows(hits) == [3, 0, 1]
     assert hits[0]["ranks"] == {"bm25": 1, "qwen3": 2, "fused": 1}
@@ -123,11 +123,11 @@ def test_search_rerank(collection):
 
 def test_search_unknown_method(collection):
     with pytest.raises(ValueError, match="unknown methods"):
-        search.search(collection, "anything", methods=["bm25", "colbert"])
+        search.search(collection, "anything", methods=["bm25", "colbert"], rerank=False)
 
 
 def test_describe(collection):
-    (hit,) = search.search(collection, "rainfall", k=1, methods=["bm25"])
+    (hit,) = search.search(collection, "rainfall", k=1, methods=["bm25"], rerank=False)
     first, second = search.describe(hit, words=2).splitlines()
     assert "Doe2015-valley (2015) | Results | bm25 1" in first
     assert second.strip() == "Rainfall peaked ..."

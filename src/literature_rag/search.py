@@ -74,6 +74,13 @@ def rrf[Item: Hashable](rankings: Sequence[Sequence[Item]], k: int = config.RRF_
     return sorted(scores.items(), key=lambda pair: pair[1], reverse=True)
 
 
+def fuse(rankings: Sequence[Ranking]) -> Ranking:
+    """One method's ranking as it is, or the rankings of several fused with rrf()."""
+    if len(rankings) == 1:
+        return list(rankings[0])
+    return rrf([[row for row, _ in ranking] for ranking in rankings])
+
+
 def cross_encode(reranker: CrossEncoder, query: str, texts: list[str]) -> np.ndarray:
     """The reranker's score for each (query, text) pair: the model reads the two together, which is what makes it precise and slow."""
     return reranker.predict([(query, text) for text in texts], batch_size=config.RERANKER_BATCH)
@@ -84,7 +91,7 @@ def search(
     query: str,
     k: int = 10,
     methods: Sequence[str] = config.DEFAULT_METHODS,
-    rerank: bool = False,
+    rerank: bool = config.DEFAULT_RERANK,
     timings: dict[str, float] | None = None,
 ) -> list[Hit]:
     """The k best chunks of the collection for the query.
@@ -105,10 +112,9 @@ def search(
             vector = embedder.encode_queries([query], config.QUERY_INSTRUCTIONS[collection.name])[0]
             rankings[method] = dense(collection, method, vector)
         timings[method] = time.perf_counter() - start
-    if len(rankings) == 1:
-        final = next(iter(rankings.values()))
-    else:
-        final = rankings["fused"] = rrf([[row for row, _ in ranking] for ranking in rankings.values()])
+    final = fuse(list(rankings.values()))
+    if len(rankings) > 1:
+        rankings["fused"] = final
     # BM25 alone finds nothing for a query that shares no word with any chunk, and then there is nothing to rerank.
     if rerank and final:
         start = time.perf_counter()
@@ -158,7 +164,10 @@ def main() -> None:
         help="comma-separated, from bm25 and the embedding models (default: %(default)s)",
     )
     parser.add_argument(
-        "--rerank", action="store_true", help=f"rerank the fused top {config.RERANK_DEPTH} with the cross-encoder"
+        "--rerank",
+        action=argparse.BooleanOptionalAction,
+        default=config.DEFAULT_RERANK,
+        help=f"rerank the fused top {config.RERANK_DEPTH} with the cross-encoder (default: %(default)s)",
     )
     parser.add_argument("-k", type=int, default=10, help="hits to print per question (default: %(default)s)")
     args = parser.parse_args()

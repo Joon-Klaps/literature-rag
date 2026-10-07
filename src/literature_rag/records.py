@@ -148,6 +148,18 @@ class Pair(TypedDict):
     numbers: list[str]
 
 
+class RealisticQuestion(TypedDict):
+    """A literature point from a review round, put as the question Claude would search the library with, and the papers that answer it. Written by hand to data/eval/realistic.jsonl."""
+
+    # "<review file stem>/<point>", as in "LK0.3.0/8": the review, and the point's number or a short name for it.
+    question_id: str
+    question: str
+    # Citation keys as the library spells them. A hit on any of them answers the question.
+    keys: list[str]
+    # True once Joon has confirmed that these papers answer the point.
+    confirmed: bool
+
+
 class Hit(TypedDict):
     """One passage that search returns, as block 4's search() gives it."""
 

@@ -1,27 +1,52 @@
 """Where everything lives, and which services and models the retriever uses.
 
-Claude Code starts the MCP server from an arbitrary working directory, so paths are anchored to the repository, not to the current directory. Set LITERATURE_RAG_HOME to put the derived files elsewhere, and THESIS_REPO to point at another checkout of the thesis.
+The papers belong to a project: a repository such as the thesis or a manuscript, with its papers in data/manuscripts, its bibliography in allpapers.bib, and the fetch script that adds papers in scripts/fetch_pubmed_pdf.py. LITERATURE_RAG_PROJECT names the project's folder; without it, the project is the folder the command runs in, or the nearest one above it with a data/manuscripts. Everything derived from a project's papers lives here, under data/<project>/ and index/<project>/, so that each project has its own library and its own citation keys.
+
+Claude Code may start the MCP server from any working directory, so the derived files are anchored to this repository, not to the current directory. Set LITERATURE_RAG_HOME to put them elsewhere.
 """
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 
 HOME = Path(os.environ.get("LITERATURE_RAG_HOME", Path(__file__).resolve().parents[2]))
 
-# The thesis repository is the corpus of record. Papers, bibliography and chapters are read from it and never written to.
-THESIS_REPO = Path(os.environ.get("THESIS_REPO", Path.home() / "Desktop/School/PhD/phd-thesis")).expanduser()
-MANUSCRIPTS_DIR = THESIS_REPO / "data" / "manuscripts"
-BIB_FILE = THESIS_REPO / "allpapers.bib"
-# BibTeX's output for the last build: one \bibitem per key the thesis cites. Where two bibliography entries describe the same paper, the cited key wins.
-THESIS_BBL = THESIS_REPO / "thesis.bbl"
-# latexmk's record of every file the last build read. It lists the chapter files that are really part of the thesis, whatever macro included them.
-THESIS_FLS = THESIS_REPO / "thesis.fls"
-# The only door through which a paper enters the library, run with the thesis repository's own environment.
-FETCH_SCRIPT = THESIS_REPO / "scripts" / "fetch_pubmed_pdf.py"
-THESIS_PYTHON = THESIS_REPO / ".venv" / "bin" / "python"
 
-# Raw XML and TEI, parsed papers and chunks. Built from copyrighted papers and unpublished chapters, so never committed.
-DATA_DIR = HOME / "data"
+def find_project(environ: Mapping[str, str], here: Path) -> Path:
+    """The folder of the project to work on: the one LITERATURE_RAG_PROJECT names, or else the nearest folder at or above here that holds data/manuscripts, or else here itself, which require_project() then refuses."""
+    if environ.get("LITERATURE_RAG_PROJECT"):
+        return Path(environ["LITERATURE_RAG_PROJECT"]).expanduser().resolve()
+    for folder in (here, *here.parents):
+        if (folder / "data" / "manuscripts").is_dir():
+            return folder
+    return here
+
+
+# The project is the corpus of record. Papers, bibliography and chapters are read from it and never written to, except by its own fetch script.
+PROJECT = find_project(os.environ, Path.cwd().resolve())
+# The project's folder name names its derived files, as in data/phd-thesis/.
+PROJECT_NAME = PROJECT.name
+MANUSCRIPTS_DIR = PROJECT / "data" / "manuscripts"
+BIB_FILE = PROJECT / "allpapers.bib"
+# BibTeX's output for the last build of a thesis: one \bibitem per key the thesis cites. Where two bibliography entries describe the same paper, the cited key wins. A project without one simply has no cited keys.
+THESIS_BBL = PROJECT / "thesis.bbl"
+# latexmk's record of every file the last build of a thesis read. It lists the chapter files that are really part of the thesis, whatever macro included them. A project without one has no thesis collection.
+THESIS_FLS = PROJECT / "thesis.fls"
+# The only door through which a paper enters the library, run with the project's own environment.
+FETCH_SCRIPT = PROJECT / "scripts" / "fetch_pubmed_pdf.py"
+PROJECT_PYTHON = PROJECT / ".venv" / "bin" / "python"
+
+
+def require_project() -> None:
+    """Stop a command that needs a project when there is none: without this, ingestion would write an empty library for whatever folder it was run in."""
+    if not MANUSCRIPTS_DIR.is_dir():
+        raise SystemExit(
+            f"No data/manuscripts in {PROJECT}. Set LITERATURE_RAG_PROJECT to the project's folder, or run the command from inside the project."
+        )
+
+
+# Raw XML and TEI, parsed papers and chunks, one folder per project. Built from copyrighted papers and unpublished chapters, so never committed.
+DATA_DIR = HOME / "data" / PROJECT_NAME
 MANIFEST_FILE = DATA_DIR / "manifest.json"
 JATS_DIR = DATA_DIR / "raw" / "jats"
 TEI_DIR = DATA_DIR / "raw" / "tei"
@@ -37,17 +62,17 @@ REALISTIC_FILE = EVAL_DIR / "realistic.jsonl"
 # The rankings that are slow to make (the reranker's scores, qmd's results), kept so that a second run takes seconds. Delete the folder to make them again.
 RUNS_DIR = EVAL_DIR / "runs"
 # The paragraph summaries that the thesis-index skill wrote, the questions of the thesis check.
-PARAGRAPH_INDEX_FILE = THESIS_REPO / "PARAGRAPH-INDEX.md"
-# Embedding matrices, one per collection and model, with the hash of the text behind each row. Never committed.
-INDEX_DIR = HOME / "index"
+PARAGRAPH_INDEX_FILE = PROJECT / "PARAGRAPH-INDEX.md"
+# Embedding matrices, one per collection and model, with the hash of the text behind each row, one folder per project. Never committed.
+INDEX_DIR = HOME / "index" / PROJECT_NAME
 # Aggregate evaluation numbers only, so these are committed.
-RESULTS_DIR = HOME / "results"
+RESULTS_DIR = HOME / "results" / PROJECT_NAME
 
-# Hand-made corrections for papers the bibliography match gets wrong or misses: one row per Markdown file, with its citation key. Committed, since it holds file names and keys only.
-KEY_OVERRIDES_FILE = HOME / "key-overrides.csv"
+# Hand-made corrections for papers the bibliography match gets wrong or misses: one row per Markdown file, with its citation key. One file per project, since each project has its own bibliography and its own keys. Committed, since it holds file names and keys only.
+KEY_OVERRIDES_FILE = HOME / "key-overrides" / f"{PROJECT_NAME}.csv"
 # A title matches a bibliography entry when the two normalised titles are at least this similar (difflib's ratio, 0 to 1).
 TITLE_SIMILARITY = 0.92
-# Files in data/manuscripts that are not citable sources: a style book, a supplement and a department thesis. They are ingested so that a search can still find them, but they carry citable=false.
+# Files in the thesis's data/manuscripts that are not citable sources: a style book, a supplement and a department thesis. They are ingested so that a search can still find them, but they carry citable=false. They are file names, so in another project they match only the same file.
 NOT_CITABLE = {
     "writ_scien_engin.md",
     "41592_2012_BFnmeth1923_MOESM326_ESM.md",
@@ -141,8 +166,10 @@ RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 RERANKER_MAX_TOKENS = 1024
 RERANKER_BATCH = 16
 
-# The two things search can look in, and the chunk file each is read from. Their vectors live in INDEX_DIR/<collection>/.
-COLLECTIONS = {"library": LIBRARY_CHUNKS_FILE, "thesis": THESIS_CHUNKS_FILE}
+# The things search can look in, and the chunk file each is read from. Their vectors live in INDEX_DIR/<collection>/. Every project has a library; only a project with a thesis.fls has a thesis to search.
+COLLECTIONS = {"library": LIBRARY_CHUNKS_FILE}
+if THESIS_FLS.is_file():
+    COLLECTIONS["thesis"] = THESIS_CHUNKS_FILE
 # Each method hands this many candidates to fusion, ranked best first.
 CANDIDATES = 100
 # Reciprocal rank fusion scores a passage as the sum of 1 / (RRF_K + rank) over the rankings it appears in. 60 is the constant of the original paper (Cormack and others, 2009), which damps the difference between the first few ranks.
@@ -178,6 +205,6 @@ BOOTSTRAP_SEED = 2026
 NUMBER_CHECK_DEPTH = 5
 # The thesis check: this many paragraph summaries from PARAGRAPH-INDEX.md, drawn with the bootstrap seed among those whose cited keys pick out exactly one current paragraph.
 THESIS_CHECK_SIZE = 20
-# qmd, the finished system to beat: its BM25 search and its full hybrid query over the unmodified Markdown, each asked for this many documents.
+# qmd, the finished system to beat: its BM25 search and its full hybrid query over the unmodified Markdown of the thesis's papers, each asked for this many documents.
 QMD_COLLECTION = "papers"
 QMD_RESULTS = 10

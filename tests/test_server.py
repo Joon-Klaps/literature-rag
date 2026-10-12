@@ -65,10 +65,10 @@ class ToyReranker:
 
 @pytest.fixture
 def loads(monkeypatch, tmp_path):
-    """Point the server at a made-up thesis repository and collections, and return the list of collections it loads, in order."""
+    """Point the server at a made-up thesis project and its collections, and return the list of collections it loads, in order."""
     monkeypatch.setattr(models, "load_embedder", lambda name: ToyEmbedder())
     monkeypatch.setattr(models, "load_reranker", lambda: ToyReranker())
-    monkeypatch.setattr(config, "THESIS_REPO", tmp_path)
+    monkeypatch.setattr(config, "PROJECT", tmp_path)
     monkeypatch.setattr(config, "MANUSCRIPTS_DIR", tmp_path / "data" / "manuscripts")
     monkeypatch.setattr(config, "INDEX_DIR", tmp_path / "index")
     monkeypatch.setattr(config, "COLLECTIONS", {name: tmp_path / f"{name}.jsonl" for name in ("library", "thesis")})
@@ -172,3 +172,13 @@ def test_a_stale_index_is_reported_to_the_model(loads, monkeypatch):
     monkeypatch.setattr(search, "load_collection", stale)
     with pytest.raises(ToolError, match="run literature-rag-build"):
         call("search_library", question="rainfall")
+
+
+def test_a_project_without_a_thesis_has_only_a_library(loads, monkeypatch):
+    monkeypatch.setattr(config, "COLLECTIONS", {"library": config.COLLECTIONS["library"]})
+    with pytest.raises(ToolError, match="has no thesis to search, only a library"):
+        call("search_thesis", text="rainfall drives the season")
+    with pytest.raises(ToolError, match="No chunk 'valley:L7-7'"):
+        call("get_context", chunk_id="valley:L7-7")
+    assert [hit["chunk_id"] for hit in call("search_library", question="rainfall", k=1)] == ["Doe2015-valley#1"]
+    assert loads == ["library"]

@@ -172,6 +172,7 @@ def describe(hit: Hit, words: int = 30) -> str:
 
 def main() -> None:
     """Entry point for `uv run literature-rag-search`."""
+    config.require_project()
     parser = argparse.ArgumentParser(description="Search the library or the thesis and print the hits.")
     parser.add_argument("questions", nargs="+", help="one or more questions, each searched on its own")
     parser.add_argument("--collection", choices=list(config.COLLECTIONS), default="library")

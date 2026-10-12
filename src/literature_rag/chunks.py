@@ -1,6 +1,6 @@
 """Cut the library into passages, the units that search ranks, and write them next to the thesis chunks and the test pairs.
 
-Run `uv run literature-rag-chunk` after `literature-rag-ingest`; `literature-rag-add` runs both. It writes three files:
+Run `uv run literature-rag-chunk` after `literature-rag-ingest`; `literature-rag-add` runs both. It writes three files under data/<project>/, the last two only for a project with a thesis (config.COLLECTIONS):
 
 - data/chunks/library.jsonl: every paper in data/papers/ as passages. The abstract and each caption are passages of their own. Body paragraphs are merged within their section, in reading order, up to config.CHUNK_WORDS, and a paragraph over config.SPLIT_WORDS is first cut at sentence ends.
 - data/chunks/thesis.jsonl: the thesis's paragraphs and captions, read by thesis.py.
@@ -172,6 +172,11 @@ def summarise(
         lines.append(
             f"  {kind:<10}{len(words):>8}{statistics.median(words):>14.0f}{within:>9.0%}{short:>7.0%}{long:>7.0%}"
         )
+    if "thesis" not in config.COLLECTIONS:
+        lines.append(
+            f"\nNo thesis: {config.PROJECT_NAME} has no {config.THESIS_FLS.name}, so no thesis chunks and no test pairs"
+        )
+        return lines
     files = len({chunk["file"] for chunk in thesis_chunks})
     kinds = Counter(chunk["kind"] for chunk in thesis_chunks)
     cited = {key.lower() for chunk in thesis_chunks for key in chunk["keys"]}
@@ -193,18 +198,24 @@ def summarise(
 
 
 def build() -> list[str]:
-    """Chunk the library and the thesis, make the test pairs, write all three files, and return the report."""
+    """Chunk the library and, where the project has one, the thesis, make the test pairs, write the files, and return the report."""
     papers = load_papers()
     library = [chunk for paper in papers for chunk in chunk_paper(paper)]
-    thesis_chunks, sentences = thesis.read_thesis()
-    pairs = thesis.make_pairs(sentences, library_keys(papers))
     write_jsonl(config.LIBRARY_CHUNKS_FILE, library)
-    write_jsonl(config.THESIS_CHUNKS_FILE, thesis_chunks)
-    write_jsonl(config.THESIS_PAIRS_FILE, pairs)
+    thesis_chunks, sentences, pairs = [], [], []
+    if "thesis" in config.COLLECTIONS:
+        thesis_chunks, sentences = thesis.read_thesis()
+        pairs = thesis.make_pairs(sentences, library_keys(papers))
+        write_jsonl(config.THESIS_CHUNKS_FILE, thesis_chunks)
+        write_jsonl(config.THESIS_PAIRS_FILE, pairs)
     return summarise(papers, library, thesis_chunks, sentences, pairs)
 
 
 def main() -> None:
     """Entry point for `uv run literature-rag-chunk`."""
+    config.require_project()
     print("\n".join(build()))
-    print(f"\nWrote {config.LIBRARY_CHUNKS_FILE}, {config.THESIS_CHUNKS_FILE} and {config.THESIS_PAIRS_FILE}")
+    files = [config.LIBRARY_CHUNKS_FILE]
+    if "thesis" in config.COLLECTIONS:
+        files += [config.THESIS_CHUNKS_FILE, config.THESIS_PAIRS_FILE]
+    print(f"\nWrote {', '.join(str(path) for path in files)}")

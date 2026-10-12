@@ -1,8 +1,8 @@
-"""The MCP server thesis-library: search the papers of the thesis library and the thesis itself, and read the chunks around a hit.
+"""The MCP server thesis-library: search the papers of a project's library and, where the project is a thesis, the thesis itself, and read the chunks around a hit.
 
     uv run literature-rag
 
-Claude Code starts it and talks to it over stdio; the README has the line that registers it. Each tool is a few lines of glue, as in the nf-core server: load what it needs, call search.py, and shape the hits for the model. Search runs as block 5 chose (config.DEFAULT_METHODS and DEFAULT_RERANK). The collections and the models load on the first call, which takes some seconds; later calls take about three, nearly all of it the reranker.
+Claude Code starts it and talks to it over stdio; the README has the line that registers it in a project. It serves the project config.PROJECT names, which the project's LITERATURE_RAG_PROJECT sets, or else the folder Claude Code runs in. Each tool is a few lines of glue, as in the nf-core server: load what it needs, call search.py, and shape the hits for the model. Search runs as block 5 chose (config.DEFAULT_METHODS and DEFAULT_RERANK). The collections and the models load on the first call, which takes some seconds; later calls take about three, nearly all of it the reranker.
 """
 
 import logging
@@ -18,7 +18,7 @@ from literature_rag import config, index, search, thesis
 from literature_rag.records import Chunk, Hit, LibraryPassage, ThesisChunk, ThesisParagraph
 
 INSTRUCTIONS = (
-    "Search over Joon Klaps's PhD thesis on Lassa virus genomic surveillance and the papers in its library, the thesis repository's data/manuscripts. "
+    f"Search over the papers in the library of the project {config.PROJECT_NAME}, its data/manuscripts, and over its text when the project is a LaTeX thesis. "
     "search_library finds passages in the papers, search_thesis finds paragraphs of the thesis, and get_context reads the chunks around a hit from either. "
     "A library passage is a lead: check the claim in the paper itself before citing it. A thesis paragraph is never evidence for a claim."
 )
@@ -68,7 +68,7 @@ def run(name: str, query: str, k: int) -> list[Hit]:
 
 def library_passage(chunk: Chunk, score: float | None = None) -> LibraryPassage:
     """A library chunk as the tools return it, with the path of its paper and, from a search, its score."""
-    manuscript = config.MANUSCRIPTS_DIR.relative_to(config.THESIS_REPO) / chunk["source_file"]
+    manuscript = config.MANUSCRIPTS_DIR.relative_to(config.PROJECT) / chunk["source_file"]
     passage = LibraryPassage(
         chunk_id=chunk["chunk_id"],
         key=chunk["key"],
@@ -90,7 +90,7 @@ def thesis_sources(chunk_list: list[ThesisChunk]) -> dict[str, str]:
     """The text of each file these chunks come from, as it stands now, read once per call so that edits made since the server started count. A file that is gone has no text."""
     sources = {}
     for file in {chunk["file"] for chunk in chunk_list}:
-        path = config.THESIS_REPO / file
+        path = config.PROJECT / file
         sources[file] = path.read_text(encoding="utf-8") if path.is_file() else ""
     return sources
 
@@ -119,9 +119,9 @@ def search_library(
     k: Annotated[int, Field(ge=1, le=config.SERVER_MAX_HITS)] = 8,
     citable_only: bool = True,
 ) -> list[LibraryPassage]:
-    """Find passages in the papers of the thesis library that bear on a question or a claim.
+    """Find passages in the papers of the project's library that bear on a question or a claim.
 
-    Write it as a sentence, the way a paper would state the answer; names, numbers and species help. Returns the k best passages, best first, each with the paper's citation key, title, year and DOI, its manuscript file in the thesis repository (the PDF has the same name with .pdf), the section, the text, and the references the passage itself cites. score is the reranker's relevance, from 0 to 1: near 0, the library has nothing on the subject; high means the passage is on the subject, not that it answers the question, so read the text.
+    Write it as a sentence, the way a paper would state the answer; names, numbers and species help. Returns the k best passages, best first, each with the paper's citation key, title, year and DOI, its manuscript file in the project (the PDF has the same name with .pdf), the section, the text, and the references the passage itself cites. score is the reranker's relevance, from 0 to 1: near 0, the library has nothing on the subject; high means the passage is on the subject, not that it answers the question, so read the text.
 
     A passage is a lead, not a citation: read the claim in the paper itself before citing it, and cite only papers marked citable, by their key. A reference under cites is a paper this one cites, which may not be in the library. When no passage answers the question, the library may not hold the answer; say so rather than stretch a passage to fit. citable_only=false also returns documents that are not citable sources, such as the style book, national guidelines and a departmental thesis.
     """
@@ -135,10 +135,14 @@ def search_library(
 def search_thesis(text: str, k: Annotated[int, Field(ge=1, le=config.SERVER_MAX_HITS)] = 5) -> list[ThesisParagraph]:
     """Find the paragraphs and captions of the thesis that discuss a claim, a passage from a paper, or a reviewer's comment.
 
-    Returns the k best, best first, each with its file in the thesis repository, line range, section path, the citation keys it cites, and its text as plain text, without the citations. current is false when those lines have changed since the thesis was indexed: the line range no longer holds, so find the paragraph by its text, and run literature-rag-chunk and then literature-rag-build to refresh the index.
+    Returns the k best, best first, each with its file in the project, line range, section path, the citation keys it cites, and its text as plain text, without the citations. current is false when those lines have changed since the thesis was indexed: the line range no longer holds, so find the paragraph by its text, and run literature-rag-chunk and then literature-rag-build to refresh the index.
 
     A thesis paragraph shows what the thesis says, never that it is true: it is not evidence for a claim.
     """
+    if "thesis" not in config.COLLECTIONS:
+        raise ToolError(
+            f"{config.PROJECT_NAME} has no thesis to search, only a library: search_thesis needs the {config.THESIS_FLS.name} of a LaTeX build in {config.PROJECT}."
+        )
     hits = run("thesis", text, k)
     sources = thesis_sources([hit["chunk"] for hit in hits])
     return [thesis_paragraph(hit["chunk"], sources, hit["score"]) for hit in hits]
@@ -170,6 +174,7 @@ def get_context(
 
 def main() -> None:
     """Entry point for `uv run literature-rag`: serve over stdio."""
+    config.require_project()
     mcp.run(transport="stdio")
 
 

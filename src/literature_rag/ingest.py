@@ -120,7 +120,7 @@ def summarise(papers: list[Paper], notes: dict[str, list[str]]) -> list[str]:
     )
     notes = {
         **notes,
-        "without a key (add them to key-overrides.csv if the bibliography has them)": [
+        "without a key (add them to key-overrides/<project>.csv if the bibliography has them)": [
             p["source_file"] for p in papers if p["key"] is None
         ],
         "whose text does not match the title (check the PDF)": [p["source_file"] for p in papers if not title_found(p)],
@@ -324,6 +324,7 @@ def ingest() -> tuple[list[Paper], set[str], list[str]]:
 
 def main() -> None:
     """Entry point for `uv run literature-rag-ingest`."""
+    config.require_project()
     _, _, report = ingest()
     print("\n".join(report))
     print(f"\nWrote {config.PAPERS_DIR} and {config.MANIFEST_FILE}")

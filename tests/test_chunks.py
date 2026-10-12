@@ -1,8 +1,10 @@
 """Library chunking on a made-up paper: merging within sections, size limits, captions and the abstract alone, neighbour ids and citations."""
 
+import json
+
 import pytest
 
-from literature_rag import chunks
+from literature_rag import chunks, config
 
 
 def words(n: int, word: str = "word") -> str:
@@ -102,3 +104,18 @@ def test_library_keys_are_citable_and_case_free():
         {"key": None, "citable": False},
     ]
     assert chunks.library_keys(papers) == {"de_vries2021": "De_Vries2021"}
+
+
+def test_a_project_without_a_thesis_gets_library_chunks_only(paper, tmp_path, monkeypatch):
+    (tmp_path / "papers").mkdir()
+    (tmp_path / "papers" / "Doe2015-valley.json").write_text(json.dumps(paper), encoding="utf-8")
+    monkeypatch.setattr(config, "PAPERS_DIR", tmp_path / "papers")
+    monkeypatch.setattr(config, "LIBRARY_CHUNKS_FILE", tmp_path / "chunks" / "library.jsonl")
+    monkeypatch.setattr(config, "THESIS_CHUNKS_FILE", tmp_path / "chunks" / "thesis.jsonl")
+    monkeypatch.setattr(config, "THESIS_PAIRS_FILE", tmp_path / "eval" / "thesis_pairs.jsonl")
+    monkeypatch.setattr(config, "COLLECTIONS", {"library": config.LIBRARY_CHUNKS_FILE})
+    monkeypatch.setattr(config, "PROJECT_NAME", "manuscript")
+    report = chunks.build()
+    assert chunks.read_jsonl(config.LIBRARY_CHUNKS_FILE)
+    assert not config.THESIS_CHUNKS_FILE.exists() and not config.THESIS_PAIRS_FILE.exists()
+    assert report[-1].startswith("\nNo thesis: manuscript has no thesis.fls")

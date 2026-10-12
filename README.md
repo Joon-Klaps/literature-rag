@@ -2,6 +2,8 @@
 
 Hybrid retrieval over a PhD thesis on Lassa virus genomic surveillance (KU Leuven) and the roughly 300 papers it draws on, served to Claude Code as an MCP server. It was built for the jury revisions: finding the source of a claim, checking a number against the paper it came from, and finding where a new paper belongs in the thesis.
 
+It serves other projects too, each with a library of its own: any repository that keeps its papers in `data/manuscripts/` the way the thesis does (see "Projects" below).
+
 Status: under construction. Retrieval, its evaluation and the MCP server are built; the write-up is next.
 
 ## How it works
@@ -23,17 +25,31 @@ uv run literature-rag-check    # reports what is in place and what is missing
 
 GROBID's image starts through `tini`, which fails under amd64 emulation, so the platform is pinned: on a machine with `DOCKER_DEFAULT_PLATFORM=linux/amd64` set, Docker would otherwise pull the emulated image. Do not add `--init` either; the image brings its own.
 
-The thesis repository is read from `~/Desktop/School/PhD/phd-thesis`; set `THESIS_REPO` to point elsewhere. It is only ever read.
+## Projects
+
+A project is a repository with its papers in `data/manuscripts/` (a PDF and its Markdown for each), its bibliography in `allpapers.bib`, and the fetch script `scripts/fetch_pubmed_pdf.py`, with a `.venv` to run it in, which adds papers to both. The thesis (`~/Desktop/School/PhD/phd-thesis`) and the rapidtrees manuscript are two. A project is only ever read from here; papers enter it through its own fetch script.
+
+Every command works on one project: the folder `LITERATURE_RAG_PROJECT` names, or else the project it runs in, the nearest folder at or above the current one that holds `data/manuscripts/`. Outside any project and without the variable, the commands stop and say so. Each project sets the variable for its Claude Code sessions in `.claude/settings.local.json`, which git does not track:
+
+```json
+{ "env": { "LITERATURE_RAG_PROJECT": "/Users/joonklaps/Desktop/School/PhD/phd-thesis" } }
+```
+
+From a terminal, run the commands inside the project, or name it: `LITERATURE_RAG_PROJECT=~/Desktop/School/PhD/phd-thesis uv run literature-rag-check`.
+
+Everything derived from a project's papers lives in this repository, under `data/<project>/` and `index/<project>/`, named after the project's folder. Each project has its own library, with the citation keys of its own bibliography, so a passage never carries a key that the project cannot cite. Hand-made key corrections are in `key-overrides/<project>.csv` and evaluation numbers in `results/<project>/`. A project with a `thesis.fls`, latexmk's record of a LaTeX build, also has a thesis collection for `search_thesis`; the test questions come from that thesis, so only the thesis is evaluated.
+
+To add a project, give it the layout above, set the variable in its `.claude/settings.local.json`, run `literature-rag-ingest`, `literature-rag-chunk` and `literature-rag-build` inside it, and register the server from it (see "Using it from Claude Code").
 
 ## Building and growing the library
 
 ```bash
-uv run literature-rag-ingest   # structured text for every paper in the thesis repository's data/manuscripts
+uv run literature-rag-ingest   # structured text for every paper in the project's data/manuscripts
 uv run literature-rag-chunk    # passages of the papers and of the thesis, and the test questions
 uv run literature-rag-build    # vectors for every passage, from each embedding model
 ```
 
-The first ingestion downloads Europe PMC's XML and sends the other PDFs to GROBID, which takes about an hour, mostly GROBID looking each reference up in Crossref. Everything it downloads or computes is cached under `data/raw/`, so a later run only does the work for papers it has not seen and finishes in seconds otherwise. Chunking takes seconds and is redone in full each time. The first build embeds every passage, about 20 minutes on an M1 Max, mostly Qwen3; after that it keeps each vector as long as its passage's text is unchanged, so a new paper costs seconds.
+The first ingestion downloads Europe PMC's XML and sends the other PDFs to GROBID, which takes about an hour, mostly GROBID looking each reference up in Crossref. Everything it downloads or computes is cached under `data/<project>/raw/`, so a later run only does the work for papers it has not seen and finishes in seconds otherwise. Chunking takes seconds and is redone in full each time. The first build embeds every passage, about 20 minutes on an M1 Max, mostly Qwen3; after that it keeps each vector as long as its passage's text is unchanged, so a new paper costs seconds.
 
 To try a search from the command line, with any of the methods (`bm25`, `qwen3`, `medcpt`) and with or without the reranker:
 
@@ -49,7 +65,7 @@ uv export --frozen --no-hashes --no-emit-project --no-dev -o /tmp/literature-rag
 uv tool install --editable . -c /tmp/literature-rag-constraints.txt
 ```
 
-Then a new paper goes into the library with one command, which takes the same arguments as the thesis repository's `scripts/fetch_pubmed_pdf.py`, runs that script, ingests what it downloaded, redoes the chunks and embeds the new ones:
+Then a new paper goes into the library with one command, which takes the same arguments as the project's `scripts/fetch_pubmed_pdf.py`, runs that script, ingests what it downloaded, redoes the chunks and embeds the new ones:
 
 ```bash
 literature-rag-add 10.1038/srep21977
@@ -61,24 +77,26 @@ Papers still enter the library only through the fetch script. One fetched by run
 ## Evaluating
 
 ```bash
-uv run literature-rag-eval            # every configuration, the reranker and the qmd baselines; writes results/eval.md and results/eval.json
+uv run literature-rag-eval            # every configuration, the reranker and the qmd baselines; writes results/<project>/eval.md and eval.json
 uv run literature-rag-eval --no-qmd   # the same without qmd
 ```
 
-The questions are the thesis sentences that cite exactly one paper of the library, each answered by that paper; about ten literature points from the review rounds, each with the papers that answer it; and twenty paragraph summaries from the thesis repository's `PARAGRAPH-INDEX.md`, searched in the thesis itself. Each configuration (BM25, each embedder, their fusions, and the best fusion reranked) is scored by hit@1, hit@5 and MRR@10 at the level of papers, with bootstrap intervals, against qmd's own keyword search and its full hybrid search over the unmodified Markdown. The first run takes about an hour, nearly all of it `qmd query` and the reranker; their results are kept under `data/eval/runs/`, so a second run takes about a minute.
+The questions are the thesis sentences that cite exactly one paper of the library, each answered by that paper; about ten literature points from the review rounds, each with the papers that answer it; and twenty paragraph summaries from the thesis's `PARAGRAPH-INDEX.md`, searched in the thesis itself. Each configuration (BM25, each embedder, their fusions, and the best fusion reranked) is scored by hit@1, hit@5 and MRR@10 at the level of papers, with bootstrap intervals, against qmd's own keyword search and its full hybrid search over the unmodified Markdown. The first run takes about an hour, nearly all of it `qmd query` and the reranker; their results are kept under `data/<project>/eval/runs/`, so a second run takes about a minute. The questions come from the thesis, so the command runs for the thesis only.
 
 ## Using it from Claude Code
 
-The MCP server `thesis-library` is registered once, from the thesis repository, so that it is there in every Claude Code session opened in it:
+The MCP server `thesis-library` is registered once in each project, from the project's folder, so that it is there in every Claude Code session opened in it:
 
 ```bash
-claude mcp add thesis-library --scope local -- uv --directory literature-rag run literature-rag
+claude mcp add thesis-library --scope local -- uv run --project ~/Desktop/School/PhD/git_repos/literature-rag literature-rag
 ```
+
+`uv run --project` runs this repository's environment without leaving the folder Claude Code runs in, so the server serves that project even when the project's `LITERATURE_RAG_PROJECT` does not reach it. The name is the same in every project, so agents and skills that call its tools work in each.
 
 It has three tools, all read-only:
 
-- `search_library(question, k=8, citable_only=True)`: passages from the papers, each with its citation key, title, year, DOI, section, text, the references it cites, a relevance score from 0 to 1, and the path of the paper's Markdown in the thesis repository, next to its PDF, to check the passage against.
-- `search_thesis(text, k=5)`: paragraphs and captions of the thesis, each with its file, line range, section path and cited keys, and `current`, false when those lines have changed since the thesis was indexed.
+- `search_library(question, k=8, citable_only=True)`: passages from the papers, each with its citation key, title, year, DOI, section, text, the references it cites, a relevance score from 0 to 1, and the path of the paper's Markdown in the project, next to its PDF, to check the passage against.
+- `search_thesis(text, k=5)`: paragraphs and captions of the thesis, each with its file, line range, section path and cited keys, and `current`, false when those lines have changed since the thesis was indexed. In a project without a thesis it says so instead.
 - `get_context(chunk_id, window=1)`: a hit with the chunks around it, from the same paper or the same chapter.
 
 A passage is a lead to check against the paper, and a thesis paragraph is never evidence for a claim; the tool descriptions say both to the model. The first call takes about ten seconds while the models load, later calls about three. The server notices when `literature-rag-chunk` or `literature-rag-build` has changed its files and loads them again, so a paper added during a session is found without a restart; after a change to the code, reconnect it with `/mcp`. After editing the thesis, run `literature-rag-chunk` and `literature-rag-build` to bring its line numbers up to date.

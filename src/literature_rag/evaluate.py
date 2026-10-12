@@ -6,11 +6,11 @@ Three sets of questions:
 
 - The test pairs (data/eval/thesis_pairs.jsonl, from block 3): a thesis sentence that cites one paper of the library, whose answer is that paper.
 - The realistic set (data/eval/realistic.jsonl): literature points from the review rounds, each with the papers that answer it. Too few for a rate, so each is reported on its own.
-- The thesis check: paragraph summaries from the thesis repository's PARAGRAPH-INDEX.md, searched in the thesis collection, whose answer is the one current paragraph that cites the same keys.
+- The thesis check: paragraph summaries from the thesis's PARAGRAPH-INDEX.md, searched in the thesis collection, whose answer is the one current paragraph that cites the same keys.
 
 A query's ranking of chunks becomes a ranking of papers, each paper counted once at the place of its best chunk, and the place of the right paper gives hit@1, hit@5 and MRR@10, each with a bootstrap interval. The configurations are BM25, each embedder, their fusions, and the best fusion reranked at several depths. The baselines are qmd's BM25 (`qmd search`) and its full hybrid (`qmd query`, with query expansion and reranking) over the unmodified Markdown, and our own BM25 over that same Markdown, page by page, which shows what the structured text adds. The reranker's scores and qmd's results are slow to make, so they are kept in data/eval/runs/ and reused.
 
-Writes results/eval.json and results/eval.md: numbers, configuration names, keys and question ids, never the text of a question, since the questions quote the unpublished thesis and its reviews.
+All three come from a thesis, so only a project with one can be evaluated, and qmd's collection (config.QMD_COLLECTION) holds the thesis's papers. Writes results/<project>/eval.json and results/<project>/eval.md: numbers, configuration names, keys and question ids, never the text of a question, since the questions quote the unpublished thesis and its reviews.
 """
 
 import argparse
@@ -428,7 +428,7 @@ def table(configurations: dict[str, dict], numbers: bool) -> list[str]:
 
 
 def report(results: dict) -> str:
-    """results/eval.md: the tables of results/eval.json, with a few sentences generated from the numbers."""
+    """eval.md: the tables of eval.json, with a few sentences generated from the numbers."""
     library, thesis_check, realistic = results["library"], results["thesis"], results["realistic"]
     configurations, best = library["configurations"], library["best"]
     lines = [
@@ -480,7 +480,7 @@ def report(results: dict) -> str:
 def main() -> None:
     """Entry point for `uv run literature-rag-eval`."""
     parser = argparse.ArgumentParser(
-        description="Evaluate every search configuration and qmd on the test questions, and write results/."
+        description="Evaluate every search configuration and qmd on the test questions, and write results/<project>/."
     )
     parser.add_argument(
         "--no-qmd",
@@ -488,6 +488,9 @@ def main() -> None:
         help="leave out the qmd baselines (qmd query takes about 15 s a question the first time)",
     )
     args = parser.parse_args()
+    config.require_project()
+    if "thesis" not in config.COLLECTIONS:
+        raise SystemExit(f"{config.PROJECT_NAME} has no thesis, and the test questions are drawn from one.")
 
     pairs = pair_queries(chunks.read_jsonl(config.THESIS_PAIRS_FILE))
     library_keys = {

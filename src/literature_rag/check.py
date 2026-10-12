@@ -21,14 +21,22 @@ MIN_FREE_GB = 10
 KNOWN_PMCID = "PMC9466315"
 
 
-def thesis_repo() -> tuple[bool, str]:
+def project() -> tuple[bool, str]:
+    """Which project the commands work on, and whether it has what they read. A thesis.fls is optional: without one, the project has a library but no thesis to search."""
     if not config.MANUSCRIPTS_DIR.is_dir():
-        return False, f"{config.MANUSCRIPTS_DIR} not found; set THESIS_REPO"
+        return (
+            False,
+            f"no data/manuscripts in {config.PROJECT}; set LITERATURE_RAG_PROJECT or run from inside a project",
+        )
     papers = len(list(config.MANUSCRIPTS_DIR.glob("*.md")))
-    missing = [path.name for path in (config.BIB_FILE, config.THESIS_FLS) if not path.is_file()]
-    if missing:
-        return False, f"{papers} papers, but {' and '.join(missing)} missing; run make in the thesis repository"
-    return True, f"{papers} papers, {config.BIB_FILE.name} and {config.THESIS_FLS.name} in {config.THESIS_REPO}"
+    if not config.BIB_FILE.is_file():
+        return False, f"{papers} papers, but no {config.BIB_FILE.name} in {config.PROJECT}"
+    files = (
+        f"{config.BIB_FILE.name} and {config.THESIS_FLS.name}"
+        if "thesis" in config.COLLECTIONS
+        else f"{config.BIB_FILE.name} (no {config.THESIS_FLS.name}, so no thesis to search)"
+    )
+    return True, f"{config.PROJECT_NAME}: {papers} papers, {files}, in {config.PROJECT}"
 
 
 def grobid() -> tuple[bool, str]:
@@ -99,7 +107,7 @@ def vectors() -> tuple[bool, str]:
 
 
 CHECKS: list[tuple[str, Callable[[], tuple[bool, str]], bool]] = [
-    ("thesis repository", thesis_repo, True),
+    ("project", project, True),
     ("GROBID", grobid, True),
     ("Europe PMC", europe_pmc, True),
     ("models", models, True),

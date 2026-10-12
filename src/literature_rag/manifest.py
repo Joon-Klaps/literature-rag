@@ -1,6 +1,6 @@
 """One row per paper in data/manuscripts: its identifiers, its citation key, whether it is citable, and the route its text will take.
 
-The identifiers come from the metadata block that the fetch script writes at the top of every Markdown file. The key comes from allpapers.bib: an entry in key-overrides.csv first, since it is a correction made by hand, then a DOI match, then an exact match of the normalised title, then a close title match. Where two bibliography entries describe the same paper, the one the thesis cites wins.
+The identifiers come from the metadata block that the fetch script writes at the top of every Markdown file. The key comes from the project's allpapers.bib: an entry in key-overrides/<project>.csv first, since it is a correction made by hand, then a DOI match, then an exact match of the normalised title, then a close title match. Where two bibliography entries describe the same paper, the one the thesis cites wins.
 """
 
 import csv
@@ -105,7 +105,7 @@ class BibIndex:
 
 
 def read_overrides(path: Path) -> dict[str, str]:
-    """key-overrides.csv as {Markdown file name: citation key}. File names contain commas, so the file is real CSV with quoting."""
+    """A key-overrides file as {Markdown file name: citation key}. File names contain commas, so the file is real CSV with quoting."""
     if not path.is_file():
         return {}
     with open(path, newline="", encoding="utf-8") as f:

@@ -133,7 +133,7 @@ class Sentence(NamedTuple):
 
 
 def chapter_files(fls: str) -> list[str]:
-    """The chapter .tex files a build read, in the order it read them, relative to the thesis repository and without config.THESIS_EXCLUDED."""
+    """The chapter .tex files a build read, in the order it read them, relative to the project and without config.THESIS_EXCLUDED."""
     names = []
     for line in fls.splitlines():
         if line.startswith("INPUT "):
@@ -377,4 +377,4 @@ def make_pairs(sentences: list[Sentence], library_keys: dict[str, str]) -> list[
 def read_thesis() -> tuple[list[ThesisChunk], list[Sentence]]:
     """Parse the chapter files that the last build of the thesis read."""
     names = chapter_files(config.THESIS_FLS.read_text(encoding="utf-8", errors="replace"))
-    return parse_thesis({name: (config.THESIS_REPO / name).read_text(encoding="utf-8") for name in names})
+    return parse_thesis({name: (config.PROJECT / name).read_text(encoding="utf-8") for name in names})

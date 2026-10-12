@@ -107,7 +107,7 @@ class Chunk(TypedDict):
     title: str
     year: int | None
     doi: str | None
-    # The paper's Markdown file in the thesis repository's data/manuscripts, the copy ingestion kept; its PDF has the same name.
+    # The paper's Markdown file in the project's data/manuscripts, the copy ingestion kept; its PDF has the same name.
     source_file: str
     # The section heading for body text, "Abstract" for the abstract, and the label ("Fig. 1") for a caption.
     section: str
@@ -122,7 +122,7 @@ class ThesisChunk(TypedDict):
 
     # "<file stem>:L<start>-<end>", such as "02_introduction:L23-25".
     chunk_id: str
-    # Relative to the thesis repository, as in "chapters/02_introduction/02_introduction.tex".
+    # Relative to the project, as in "chapters/02_introduction/02_introduction.tex".
     file: str
     line_start: int
     line_end: int
@@ -183,7 +183,7 @@ class LibraryPassage(TypedDict):
     title: str
     year: int | None
     doi: str | None
-    # The paper's Markdown file, relative to the thesis repository, as in "data/manuscripts/Garry 2023 - Lassa fever - the road ahead.md". The PDF has the same name with .pdf.
+    # The paper's Markdown file, relative to the project, as in "data/manuscripts/Garry 2023 - Lassa fever - the road ahead.md". The PDF has the same name with .pdf.
     manuscript: str
     section: str
     text: str
@@ -196,7 +196,7 @@ class ThesisParagraph(TypedDict):
     """One paragraph or caption of the thesis as the MCP server returns it, from search_thesis and get_context."""
 
     chunk_id: str
-    # Relative to the thesis repository, as in "chapters/02_introduction/02_introduction.tex".
+    # Relative to the project, as in "chapters/02_introduction/02_introduction.tex".
     file: str
     line_start: int
     line_end: int

@@ -1,6 +1,6 @@
 """Embed every chunk of both collections with each embedding model, and keep the vectors under index/.
 
-Run `uv run literature-rag-build` after `literature-rag-chunk`; `literature-rag-add` runs all three. For each collection (library, thesis) and each model in config.EMBEDDING_MODELS, it keeps two files in index/<collection>/:
+Run `uv run literature-rag-build` after `literature-rag-chunk`; `literature-rag-add` runs all three. For each collection (library, thesis) and each model in config.EMBEDDING_MODELS, it keeps two files in index/<project>/<collection>/:
 
 - <model>.npy: the vectors, one row per distinct passage text, in float16 to halve the size.
 - <model>.json: the model's entry in config.EMBEDDING_MODELS, and for each row the hash of the text it was made from.
@@ -127,6 +127,7 @@ def build(collections: list[str], model_names: list[str]) -> list[str]:
 
 def main() -> None:
     """Entry point for `uv run literature-rag-build`."""
+    config.require_project()
     parser = argparse.ArgumentParser(
         description="Embed the chunks of each collection with each model, reusing every vector whose text has not changed."
     )

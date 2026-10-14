@@ -58,6 +58,12 @@ uv run literature-rag-search "case fatality among hospitalised Lassa fever patie
 uv run literature-rag-search --collection thesis "the multimammate mouse is the main reservoir"
 ```
 
+The terminal shows the first 30 words of each hit, which is enough to skim. To read them, `--full` prints each hit's whole text (`--words N` prints N words), and `--html` writes a self-contained page to `data/<project>/reports/` with the whole text of every hit, the words of the question marked, and, below the hits, each paper (or thesis chapter) the hits came from once, with all its chunks in reading order and the hits highlighted. Each hit links to its chunk in that paper, to the paper's PDF and Markdown (or the thesis's LaTeX file) and to its DOI. `--open` writes the page and opens it in the browser. Several questions go into one page.
+
+```bash
+uv run literature-rag-search "case fatality among hospitalised Lassa fever patients" "Irrua treatment cost" --open
+```
+
 To use the commands from any directory, install them once as a uv tool. The install is editable, so it follows the code in this repository, and the lock file keeps its versions identical to the project's:
 
 ```bash

@@ -155,3 +155,28 @@ def test_neighbours_stay_within_the_paper_or_the_chapter():
     assert [c["chunk_id"] for c in search.neighbours(thesis, "a:L1-1", 2)] == ["a:L1-1", "b:L1-1"]
     with pytest.raises(KeyError):
         search.neighbours(thesis, "c:L1-1", 1)
+
+
+def test_describe_full_text(collection):
+    (hit,) = search.search(collection, "rainfall", k=1, methods=["bm25"], rerank=False)
+    # Zero words means the whole text, with no ellipsis; a limit longer than the text adds none either.
+    assert search.describe(hit, words=0).splitlines()[1].strip() == "Rainfall peaked in August."
+    assert search.describe(hit, words=30).splitlines()[1].strip() == "Rainfall peaked in August."
+
+
+def test_query_terms():
+    assert search.query_terms("What is the case fatality of Lassa fever in 2018, in the case of a 5% rise?") == [
+        "case",
+        "fatality",
+        "lassa",
+        "fever",
+        "2018",
+        "5",
+        "rise",
+    ]
+
+
+def test_whole_document(collection):
+    assert [c["chunk_id"] for c in search.whole_document(collection, "Doe2015-valley#2")] == [
+        f"Doe2015-valley#{n}" for n in range(4)
+    ]

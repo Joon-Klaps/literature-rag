@@ -3,11 +3,16 @@
     uv run literature-rag-search "case fatality among hospitalised Lassa fever patients" --methods bm25,qwen3,medcpt --rerank
 
 A Collection holds the chunks of the library or the thesis, a BM25 index over their text and their vectors, and is loaded once. bm25(), dense(), rrf() and cross_encode() are the steps, and search() puts them together; neighbours() reads the chunks around a hit. The command searches each question it is given and prints the time each step took and the hits, with their key, section and opening words.
+
+To read the hits rather than skim them, --full prints each hit's whole text (--words N, any other length), and --html writes a page with the whole text, the question's words marked and every hit shown inside its paper; --open writes the page and opens it in the browser.
+
+    uv run literature-rag-search "case fatality among hospitalised Lassa fever patients" --open
 """
 
 import argparse
 import re
 import time
+import webbrowser
 from collections.abc import Hashable, Sequence
 from functools import cache
 
@@ -15,8 +20,8 @@ import numpy as np
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 
-from literature_rag import chunks, config, index, models
-from literature_rag.records import Chunk, Hit, ThesisChunk
+from literature_rag import chunks, config, index, models, report
+from literature_rag.records import Answer, Chunk, Hit, ThesisChunk
 
 # A ranking is a list of (row, score) pairs, best first, where row is a chunk's position in Collection.chunks.
 Ranking = list[tuple[int, float]]
@@ -154,8 +159,22 @@ def neighbours(collection: Collection, chunk_id: str, window: int) -> list[Chunk
     return [chunk for chunk in around if document(chunk) == document(collection.chunks[row])]
 
 
+def query_terms(query: str) -> list[str]:
+    """The words of a query worth marking in the text: those that are not filler (config.HIGHLIGHT_STOPWORDS) or a single letter (a single digit is kept, since numbers are what a reader looks for), each once, in the order they appear."""
+    return [
+        word
+        for word in dict.fromkeys(tokenize(query))
+        if (len(word) > 1 or word.isdigit()) and word not in config.HIGHLIGHT_STOPWORDS
+    ]
+
+
+def whole_document(collection: Collection, chunk_id: str) -> list[Chunk] | list[ThesisChunk]:
+    """All the chunks of the paper or the chapter that holds this one, in reading order. Raises KeyError for an unknown id."""
+    return neighbours(collection, chunk_id, len(collection.chunks))
+
+
 def describe(hit: Hit, words: int = 30) -> str:
-    """A hit in two lines: rank, score, source, section and the places each method gave it; then the opening words of its text."""
+    """A hit in two lines: rank, score, source, section and the places each method gave it; then the opening words of its text, or all of it when words is 0."""
     chunk = hit["chunk"]
     if "paper_id" in chunk:
         source = f"{chunk['key'] or chunk['paper_id']} ({chunk['year'] or 'n.d.'})"
@@ -164,10 +183,9 @@ def describe(hit: Hit, words: int = 30) -> str:
     else:
         source = chunk["chunk_id"]
     places = ", ".join(f"{name} {place}" for name, place in hit["ranks"].items())
-    opening = " ".join(chunk["text"].split()[:words])
-    return (
-        f"{hit['rank']:>3}  {hit['score']:8.3f}  {source} | {chunk['section']} | {places}\n               {opening} ..."
-    )
+    text = chunk["text"].split()
+    opening = " ".join(text[:words] if words else text) + (" ..." if words and len(text) > words else "")
+    return f"{hit['rank']:>3}  {hit['score']:8.3f}  {source} | {chunk['section']} | {places}\n               {opening}"
 
 
 def main() -> None:
@@ -188,6 +206,16 @@ def main() -> None:
         help=f"rerank the fused top {config.RERANK_DEPTH} with the cross-encoder (default: %(default)s)",
     )
     parser.add_argument("-k", type=int, default=10, help="hits to print per question (default: %(default)s)")
+    parser.add_argument(
+        "--words", type=int, default=30, help="words of each hit to print, 0 for all of it (default: %(default)s)"
+    )
+    parser.add_argument("--full", action="store_true", help="print each hit's whole text, like --words 0")
+    parser.add_argument(
+        "--html",
+        action="store_true",
+        help=f"also write a page with the whole hits, marked and in their papers, to {config.REPORTS_DIR}",
+    )
+    parser.add_argument("--open", action="store_true", help="write the page and open it in the browser")
     args = parser.parse_args()
     methods = args.methods.split(",")
     unknown = [method for method in methods if method != "bm25" and method not in config.EMBEDDING_MODELS]
@@ -210,10 +238,23 @@ def main() -> None:
         loading.append(f"{name} {time.perf_counter() - start:.1f} s")
     print(f"Loaded: {', '.join(loading)}")
 
+    answers = []
     for question in args.questions:
         timings: dict[str, float] = {}
         hits = search(collection, question, args.k, methods, args.rerank, timings)
+        answers.append(Answer(question=question, timings=timings, terms=query_terms(question), hits=hits))
         print(f"\n{question}")
         print("  " + ", ".join(f"{name} {seconds:.2f} s" for name, seconds in timings.items()))
         for hit in hits:
-            print(describe(hit))
+            print(describe(hit, 0 if args.full else args.words))
+
+    if args.html or args.open:
+        # Each paper or chapter once, in the order the hits first reach it.
+        documents: dict[str, list[Chunk] | list[ThesisChunk]] = {}
+        for answer in answers:
+            for hit in answer["hits"]:
+                documents.setdefault(document(hit["chunk"]), whole_document(collection, hit["chunk"]["chunk_id"]))
+        path = report.write(report.render(args.collection, answers, documents))
+        print(f"\nReport: {path}")
+        if args.open:
+            webbrowser.open(path.as_uri())

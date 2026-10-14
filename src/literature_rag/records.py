@@ -174,6 +174,17 @@ class Hit(TypedDict):
     chunk: Chunk | ThesisChunk
 
 
+class Answer(TypedDict):
+    """What the search command found for one question, the unit its HTML report is made of."""
+
+    question: str
+    # Seconds each step took, as search() fills them.
+    timings: dict[str, float]
+    # The words of the question worth marking in the text, in the order they appear.
+    terms: list[str]
+    hits: list[Hit]
+
+
 class LibraryPassage(TypedDict):
     """One passage of a paper as the MCP server returns it, from search_library and get_context: where it comes from, its text, and the references it cites."""
 

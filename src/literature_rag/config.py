@@ -63,6 +63,8 @@ REALISTIC_FILE = EVAL_DIR / "realistic.jsonl"
 RUNS_DIR = EVAL_DIR / "runs"
 # The paragraph summaries that the thesis-index skill wrote, the questions of the thesis check.
 PARAGRAPH_INDEX_FILE = PROJECT / "PARAGRAPH-INDEX.md"
+# The HTML reports of literature-rag-search --html. They hold whole papers and chapters, so they stay under data/ too.
+REPORTS_DIR = DATA_DIR / "reports"
 # Embedding matrices, one per collection and model, with the hash of the text behind each row, one folder per project. Never committed.
 INDEX_DIR = HOME / "index" / PROJECT_NAME
 # Aggregate evaluation numbers only, so these are committed.
@@ -179,6 +181,55 @@ RERANK_DEPTH = 50
 # What search runs when it is not told otherwise, as block 5 chose it (results/eval.md): BM25 and Qwen3 fused, with the fused top RERANK_DEPTH reranked. MedCPT made the fusion worse (MRR@10 0.62 with it, 0.64 without), and the reranker lifted it to 0.67 and the share of sentences whose numbers the top passages hold from 0.45 to 0.58, for about 2.5 seconds a question.
 DEFAULT_METHODS = ("bm25", "qwen3")
 DEFAULT_RERANK = True
+
+# Words of a question that the HTML report does not mark in the text, since they would mark nearly every line.
+HIGHLIGHT_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "been",
+        "by",
+        "can",
+        "did",
+        "do",
+        "does",
+        "for",
+        "from",
+        "had",
+        "has",
+        "have",
+        "how",
+        "in",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "or",
+        "than",
+        "that",
+        "the",
+        "their",
+        "there",
+        "these",
+        "this",
+        "to",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "with",
+    }
+)
 
 # The MCP server's limits on what one call returns. A passage with its references is about a thousand tokens, so twenty is about as much as a call should put in the model's context; a window of five reads eleven chunks, about a section.
 SERVER_MAX_HITS = 20

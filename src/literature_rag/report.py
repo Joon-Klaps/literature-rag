@@ -166,6 +166,6 @@ def render(collection: str, answers: list[Answer], documents: dict[str, list[Chu
 def write(page: str, directory: Path = config.REPORTS_DIR) -> Path:
     """Save a page under a name made from the time, so that no earlier report is overwritten, and return its path."""
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"search-{datetime.now().strftime('%Y%m%d-%H%M%S')}.html"
+    path = directory / f"search-report.html"
     path.write_text(page, encoding="utf-8")
     return path

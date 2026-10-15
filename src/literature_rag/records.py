@@ -137,6 +137,26 @@ class ThesisChunk(TypedDict):
     hash: str
 
 
+class NoteChunk(TypedDict):
+    """One passage of the researcher's notes, as literature-rag-chunk writes it to data/chunks/notes.jsonl: paragraphs of one section of a note, merged as a paper's are."""
+
+    # "<note>#<n>", numbered in reading order from 0 within the note, so the neighbours of chunk n are n - 1 and n + 1.
+    chunk_id: str
+    # The note's path in the notes folder without .md, as Obsidian names it, as in "dailyNotes/2025-06-24". It is the title in the passage's header.
+    note: str
+    # Relative to the project, as in "data/notes/dailyNotes/2025-06-24.md".
+    file: str
+    # The first line of the passage's first paragraph and the last line of its last, from 1.
+    line_start: int
+    line_end: int
+    # The note's headings above the text, joined as in "Day 1 > Panel discussion"; empty for text under no heading.
+    section: str
+    # The text with Obsidian's own syntax taken out: comments, embedded images, block ids and the brackets of links.
+    text: str
+    # A hash of the lines from line_start to line_end as they stand in the file, to tell when the note has changed.
+    hash: str
+
+
 class Pair(TypedDict):
     """A test question from the thesis: a sentence that cites one paper of the library, which is the answer."""
 
@@ -171,7 +191,7 @@ class Hit(TypedDict):
     score: float
     # Where each method placed this chunk among its candidates, from 1, and "fused" for its place after fusion. A method that did not find it among its config.CANDIDATES is missing.
     ranks: dict[str, int]
-    chunk: Chunk | ThesisChunk
+    chunk: Chunk | ThesisChunk | NoteChunk
 
 
 class Answer(TypedDict):
@@ -218,4 +238,22 @@ class ThesisParagraph(TypedDict):
     # False when those lines of the file have changed since literature-rag-chunk read them, so the line range no longer holds.
     current: bool
     # As in LibraryPassage: only search_thesis gives it.
+    score: NotRequired[float]
+
+
+class NotePassage(TypedDict):
+    """One passage of the notes as the MCP server returns it, from search_notes and get_context."""
+
+    chunk_id: str
+    # The note's path in the notes folder without .md, which for a daily note is its date.
+    note: str
+    # Relative to the project, as in "data/notes/dailyNotes/2025-06-24.md".
+    file: str
+    line_start: int
+    line_end: int
+    section: str
+    text: str
+    # As in ThesisParagraph: false when those lines of the note have changed since literature-rag-chunk read them.
+    current: bool
+    # As in LibraryPassage: only search_notes gives it.
     score: NotRequired[float]

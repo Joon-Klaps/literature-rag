@@ -1,6 +1,9 @@
 """The HTML report on a made-up paper and two questions: marking, escaping, the links between a hit and its paper, and the file it is saved to."""
 
-from literature_rag import report
+import os
+from urllib.parse import quote
+
+from literature_rag import config, report
 
 
 def chunk(n: int, text: str) -> dict:
@@ -66,3 +69,27 @@ def test_write_does_not_overwrite(tmp_path):
     first = report.write("<p>one</p>", tmp_path / "reports")
     assert first.read_text(encoding="utf-8") == "<p>one</p>"
     assert first.parent == tmp_path / "reports" and first.name.startswith("search-")
+
+
+def test_a_note_opens_in_obsidian_through_the_notes_folder_s_links(tmp_path, monkeypatch):
+    # The project's data/notes holds links into the vault, and Obsidian knows a note only by its path in the vault.
+    (tmp_path / "vault" / "daily").mkdir(parents=True)
+    (tmp_path / "project" / "data").mkdir(parents=True)
+    os.symlink(tmp_path / "vault", tmp_path / "project" / "data" / "notes")
+    monkeypatch.setattr(config, "PROJECT", tmp_path / "project")
+    note = {
+        "chunk_id": "daily/2025-08-26#0",
+        "note": "daily/2025-08-26",
+        "file": "data/notes/daily/2025-08-26.md",
+        "line_start": 3,
+        "line_end": 5,
+        "section": "Field work",
+        "text": "Rainfall at the site came late.",
+        "hash": "0123456789abcdef",
+    }
+    assert report.source_label(note) == "daily/2025-08-26:3-5"
+    in_vault = (tmp_path / "vault" / "daily" / "2025-08-26.md").resolve()
+    assert report.file_links(note) == [
+        ("Obsidian", f"obsidian://open?path={quote(str(in_vault), safe='')}"),
+        ("Markdown", in_vault.as_uri()),
+    ]

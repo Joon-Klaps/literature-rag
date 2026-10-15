@@ -2,16 +2,17 @@
 
     uv run literature-rag-search "case fatality among hospitalised Lassa fever patients" --open
 
-Each question gets its hits with their whole text and the question's words marked. Below them, each paper (or thesis chapter) that a hit came from appears once, with all its chunks in reading order and the hits highlighted, so that a hit can be read in its context without finding the file. The functions here are pure: search.py gathers the answers and the documents, and render() turns them into a string.
+Each question gets its hits with their whole text and the question's words marked. Below them, each paper (or thesis chapter, or note) that a hit came from appears once, with all its chunks in reading order and the hits highlighted, so that a hit can be read in its context without finding the file. The functions here are pure, apart from following the notes folder's symbolic links for a note's Obsidian link: search.py gathers the answers and the documents, and render() turns them into a string.
 """
 
 import html
 import re
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
 
 from literature_rag import config
-from literature_rag.records import Answer, Chunk, Hit, ThesisChunk
+from literature_rag.records import Answer, Chunk, Hit, NoteChunk, ThesisChunk
 
 STYLE = """
 :root { --bg: #fdfdfb; --fg: #1d1d1b; --muted: #6b6b66; --line: #dcdcd4; --card: #ffffff; --mark: #ffe58a; --hit: #eef4ff; --accent: #2456a6; }
@@ -61,23 +62,29 @@ def highlight(text: str, terms: list[str]) -> str:
     return "".join(f"<mark>{piece}</mark>" if i % 2 else piece for i, piece in enumerate(escaped))
 
 
-def source_label(chunk: Chunk | ThesisChunk) -> str:
-    """Where a chunk is from, as a person would cite it: the key and year of a paper, and the file and lines of a thesis paragraph."""
+def source_label(chunk: Chunk | ThesisChunk | NoteChunk) -> str:
+    """Where a chunk is from, as a person would cite it: the key and year of a paper, the name and lines of a note, and the file and lines of a thesis paragraph."""
     if "paper_id" in chunk:
         label = f"{chunk['key'] or chunk['paper_id']} ({chunk['year'] or 'n.d.'})"
         return label if chunk["citable"] else f"{label}, not citable"
+    if "note" in chunk:
+        return f"{chunk['note']}:{chunk['line_start']}-{chunk['line_end']}"
     return f"{chunk['file']}:{chunk['line_start']}-{chunk['line_end']}"
 
 
-def file_links(chunk: Chunk | ThesisChunk) -> list[tuple[str, str]]:
-    """The (label, file URL) pairs that open a chunk's source on this computer: the paper's PDF and Markdown, or the thesis file."""
+def file_links(chunk: Chunk | ThesisChunk | NoteChunk) -> list[tuple[str, str]]:
+    """The (label, file URL) pairs that open a chunk's source on this computer: the paper's PDF and Markdown, the note in Obsidian and as Markdown, or the thesis file."""
     if "paper_id" in chunk:
         manuscript = config.MANUSCRIPTS_DIR / chunk["source_file"]
         return [("PDF", manuscript.with_suffix(".pdf").as_uri()), ("Markdown", manuscript.as_uri())]
+    if "note" in chunk:
+        # Obsidian opens a file by its path inside the vault, so the path goes through the notes folder's symbolic links to the vault itself.
+        note = (config.PROJECT / chunk["file"]).resolve()
+        return [("Obsidian", f"obsidian://open?path={quote(str(note), safe='')}"), ("Markdown", note.as_uri())]
     return [("LaTeX", (config.PROJECT / chunk["file"]).as_uri())]
 
 
-def link_row(chunk: Chunk | ThesisChunk, anchor: str) -> str:
+def link_row(chunk: Chunk | ThesisChunk | NoteChunk, anchor: str) -> str:
     """The links under a hit: to the chunk inside its paper below, to the source files, and, for a paper, to its DOI."""
     links = [f'<a href="#{anchor}">in context</a>']
     links += [f'<a href="{html.escape(url)}">{label}</a>' for label, url in file_links(chunk)]
@@ -100,11 +107,17 @@ def render_hit(answer_number: int, hit: Hit, text: str, anchor: str) -> str:
 
 
 def render_document(
-    number: int, chunk_list: list[Chunk] | list[ThesisChunk], matches: dict[str, list[str]], terms: list[str]
+    number: int,
+    chunk_list: list[Chunk] | list[ThesisChunk] | list[NoteChunk],
+    matches: dict[str, list[str]],
+    terms: list[str],
 ) -> str:
-    """A paper or chapter in reading order, collapsed, with the chunks that were hits highlighted and labelled with the question and rank that found them."""
+    """A paper, note or chapter in reading order, collapsed, with the chunks that were hits highlighted and labelled with the question and rank that found them."""
     first = chunk_list[0]
-    heading = source_label(first).split(" (")[0] if "paper_id" in first else first["section"].split(" > ")[0]
+    if "paper_id" in first:
+        heading = source_label(first).split(" (")[0]
+    else:
+        heading = first["note"] if "note" in first else first["section"].split(" > ")[0]
     found = sum(chunk["chunk_id"] in matches for chunk in chunk_list)
     summary = f'<summary>{html.escape(heading)}<span class="muted"> · {len(chunk_list)} chunks, {found} found</span></summary>'
     parts = [f'<details id="doc{number}">{summary}']
@@ -119,7 +132,9 @@ def render_document(
     return "".join(parts)
 
 
-def render(collection: str, answers: list[Answer], documents: dict[str, list[Chunk] | list[ThesisChunk]]) -> str:
+def render(
+    collection: str, answers: list[Answer], documents: dict[str, list[Chunk] | list[ThesisChunk] | list[NoteChunk]]
+) -> str:
     """The whole page for the answers to one or more questions.
 
     documents maps a document's id to all its chunks in reading order; each hit's chunk must be in one of them.

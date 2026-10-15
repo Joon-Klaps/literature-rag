@@ -1,10 +1,10 @@
-"""Library chunking on a made-up paper: merging within sections, size limits, captions and the abstract alone, neighbour ids and citations."""
+"""Library chunking on a made-up paper: merging within sections, size limits, captions and the abstract alone, neighbour ids and citations; and the same merging on a made-up note, with its line ranges."""
 
 import json
 
 import pytest
 
-from literature_rag import chunks, config
+from literature_rag import chunks, config, notes, thesis
 
 
 def words(n: int, word: str = "word") -> str:
@@ -119,3 +119,59 @@ def test_a_project_without_a_thesis_gets_library_chunks_only(paper, tmp_path, mo
     assert chunks.read_jsonl(config.LIBRARY_CHUNKS_FILE)
     assert not config.THESIS_CHUNKS_FILE.exists() and not config.THESIS_PAIRS_FILE.exists()
     assert report[-1].startswith("\nNo thesis: manuscript has no thesis.fls")
+
+
+def test_a_note_merges_within_its_sections_and_keeps_its_lines():
+    lines = [
+        "# Day 1",
+        "",
+        words(120, "one"),
+        "",
+        words(120, "two"),
+        "",
+        words(120, "three"),
+        "",
+        "# Day 2",
+        "",
+        words(450, "four"),
+    ]
+    source = "\n".join(lines)
+    note = notes.Note("daily/2025-01-01", "data/notes/daily/2025-01-01.md", source, notes.parse_note(source))
+    note_chunks = chunks.chunk_note(note)
+    # As in a paper: two paragraphs of 120 words fit within 300 and a third would not, nothing is merged across a heading, and 450 words are cut into 230 and 220, each piece with the paragraph's lines.
+    assert [(c["chunk_id"], c["section"], c["line_start"], c["line_end"]) for c in note_chunks] == [
+        ("daily/2025-01-01#0", "Day 1", 3, 5),
+        ("daily/2025-01-01#1", "Day 1", 7, 7),
+        ("daily/2025-01-01#2", "Day 2", 11, 11),
+        ("daily/2025-01-01#3", "Day 2", 11, 11),
+    ]
+    assert [chunks.word_count(c["text"]) for c in note_chunks] == [240, 120, 230, 220]
+    assert note_chunks[0]["text"].count("\n\n") == 1
+    # The hash is of the lines as they stand in the file, blank line included, which is what the server checks a passage against.
+    assert note_chunks[0]["hash"] == thesis.block_hash("\n".join(lines[2:5]))
+    # A note's name stands where a paper's title does.
+    assert chunks.index_text(note_chunks[1]).startswith("daily/2025-01-01. Day 1. Three three")
+
+
+def test_a_project_with_notes_gets_note_chunks(paper, tmp_path, monkeypatch):
+    (tmp_path / "papers").mkdir()
+    (tmp_path / "papers" / "Doe2015-valley.json").write_text(json.dumps(paper), encoding="utf-8")
+    (tmp_path / "notes").mkdir()
+    (tmp_path / "notes" / "2025-01-01.md").write_text("# Field work\n\nThe traps stayed dry.\n", encoding="utf-8")
+    (tmp_path / "notes" / "Untitled.md").write_text("", encoding="utf-8")
+    monkeypatch.setattr(config, "PROJECT", tmp_path)
+    monkeypatch.setattr(config, "PAPERS_DIR", tmp_path / "papers")
+    monkeypatch.setattr(config, "NOTES_DIR", tmp_path / "notes")
+    monkeypatch.setattr(config, "LIBRARY_CHUNKS_FILE", tmp_path / "chunks" / "library.jsonl")
+    monkeypatch.setattr(config, "NOTES_CHUNKS_FILE", tmp_path / "chunks" / "notes.jsonl")
+    monkeypatch.setattr(
+        config, "COLLECTIONS", {"library": config.LIBRARY_CHUNKS_FILE, "notes": config.NOTES_CHUNKS_FILE}
+    )
+    report = chunks.build()
+    (note_chunk,) = chunks.read_jsonl(config.NOTES_CHUNKS_FILE)
+    assert (note_chunk["note"], note_chunk["file"], note_chunk["section"]) == (
+        "2025-01-01",
+        "notes/2025-01-01.md",
+        "Field work",
+    )
+    assert report[-1] == "\nNotes: 1 chunks from 1 notes (1 of 2 files hold no text); median 4 words, 100% under 50"

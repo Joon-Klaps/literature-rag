@@ -13,6 +13,7 @@ import httpx
 from literature_rag import config, index
 from literature_rag.chunks import read_jsonl
 from literature_rag.models import cached_path, model_ids
+from literature_rag.notes import note_files
 
 # Below this, the model downloads and the index may not fit.
 MIN_FREE_GB = 10
@@ -22,7 +23,7 @@ KNOWN_PMCID = "PMC9466315"
 
 
 def project() -> tuple[bool, str]:
-    """Which project the commands work on, and whether it has what they read. A thesis.fls is optional: without one, the project has a library but no thesis to search."""
+    """Which project the commands work on, and whether it has what they read. A thesis.fls and a data/notes are optional: without them, the project has a library but no thesis or notes to search."""
     if not config.MANUSCRIPTS_DIR.is_dir():
         return (
             False,
@@ -36,6 +37,8 @@ def project() -> tuple[bool, str]:
         if "thesis" in config.COLLECTIONS
         else f"{config.BIB_FILE.name} (no {config.THESIS_FLS.name}, so no thesis to search)"
     )
+    if "notes" in config.COLLECTIONS:
+        files += f", {len(note_files(config.NOTES_DIR))} notes in {config.NOTES_DIR.relative_to(config.PROJECT)}"
     return True, f"{config.PROJECT_NAME}: {papers} papers, {files}, in {config.PROJECT}"
 
 

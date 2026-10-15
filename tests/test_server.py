@@ -1,4 +1,4 @@
-"""The MCP tools on a made-up library of four papers and a made-up thesis chapter, called through the server as Claude Code calls them, with stand-in models."""
+"""The MCP tools on a made-up library of four papers, a made-up thesis chapter and two made-up notes, called through the server as Claude Code calls them, with stand-in models."""
 
 import asyncio
 import functools
@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
-from literature_rag import config, index, models, search, server, thesis
+from literature_rag import chunks, config, index, models, notes, search, server, thesis
 
 THESIS = r"""\chapter{Valley}
 
@@ -20,6 +20,11 @@ Rainfall drives the season.
 \chapter{Plains}
 
 Nothing happens on the plains."""
+
+NOTES = {
+    "daily/2025-08-26.md": "# Field work\n\nRainfall at the site came late.\n\n# Lab\n\nThe traps stayed dry.\n",
+    "talks/2025-09-09--Panel.md": "Talks ran late on the second day.\n",
+}
 
 
 def chunk(chunk_id: str, text: str, citable: bool = True) -> dict:
@@ -71,15 +76,23 @@ def loads(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "PROJECT", tmp_path)
     monkeypatch.setattr(config, "MANUSCRIPTS_DIR", tmp_path / "data" / "manuscripts")
     monkeypatch.setattr(config, "INDEX_DIR", tmp_path / "index")
-    monkeypatch.setattr(config, "COLLECTIONS", {name: tmp_path / f"{name}.jsonl" for name in ("library", "thesis")})
+    monkeypatch.setattr(config, "NOTES_DIR", tmp_path / "data" / "notes")
+    monkeypatch.setattr(
+        config, "COLLECTIONS", {name: tmp_path / f"{name}.jsonl" for name in ("library", "thesis", "notes")}
+    )
     (tmp_path / "chapters").mkdir()
     (tmp_path / "chapters" / "valley.tex").write_text(THESIS, encoding="utf-8")
     thesis_chunks, _ = thesis.parse_thesis({"chapters/valley.tex": THESIS})
+    for name, text in NOTES.items():
+        (config.NOTES_DIR / name).parent.mkdir(parents=True, exist_ok=True)
+        (config.NOTES_DIR / name).write_text(text, encoding="utf-8")
+    note_chunks = [chunk for note in notes.read_notes() for chunk in chunks.chunk_note(note)]
     collections = {
         "library": search.Collection("library", LIBRARY, {"qwen3": np.ones((len(LIBRARY), 1), dtype=np.float32)}),
         "thesis": search.Collection(
             "thesis", thesis_chunks, {"qwen3": np.ones((len(thesis_chunks), 1), dtype=np.float32)}
         ),
+        "notes": search.Collection("notes", note_chunks, {"qwen3": np.ones((len(note_chunks), 1), dtype=np.float32)}),
     }
     loaded = []
 
@@ -100,7 +113,7 @@ def call(tool: str, **arguments) -> list[dict]:
 
 def test_tools_are_read_only_with_bounded_sizes():
     tools = {tool.name: tool for tool in asyncio.run(server.mcp.list_tools())}
-    assert set(tools) == {"search_library", "search_thesis", "get_context"}
+    assert set(tools) == {"search_library", "search_thesis", "search_notes", "get_context"}
     assert all(tool.annotations.read_only_hint for tool in tools.values())
     assert tools["search_library"].input_schema["properties"]["k"]["maximum"] == config.SERVER_MAX_HITS
     assert tools["get_context"].input_schema["properties"]["window"]["maximum"] == config.SERVER_MAX_WINDOW
@@ -182,3 +195,27 @@ def test_a_project_without_a_thesis_has_only_a_library(loads, monkeypatch):
         call("get_context", chunk_id="valley:L7-7")
     assert [hit["chunk_id"] for hit in call("search_library", question="rainfall", k=1)] == ["Doe2015-valley#1"]
     assert loads == ["library"]
+
+
+def test_search_notes_says_when_the_lines_have_moved(loads):
+    (hit,) = call("search_notes", text="rainfall", k=1)
+    assert hit["chunk_id"] == "daily/2025-08-26#0" and hit["note"] == "daily/2025-08-26"
+    assert hit["file"] == "data/notes/daily/2025-08-26.md" and (hit["line_start"], hit["line_end"]) == (3, 3)
+    assert hit["section"] == "Field work" and hit["text"] == "Rainfall at the site came late."
+    assert hit["current"] is True and hit["score"] == 0.9
+    (config.NOTES_DIR / "daily" / "2025-08-26.md").write_text(
+        "#field\n" + NOTES["daily/2025-08-26.md"], encoding="utf-8"
+    )
+    assert call("search_notes", text="rainfall", k=1)[0]["current"] is False
+
+
+def test_get_context_stays_within_the_note(loads):
+    passages = call("get_context", chunk_id="daily/2025-08-26#1", window=5)
+    assert [p["chunk_id"] for p in passages] == ["daily/2025-08-26#0", "daily/2025-08-26#1"]
+    assert passages[1]["section"] == "Lab" and passages[1]["current"] is True and "score" not in passages[1]
+
+
+def test_a_project_without_notes_says_so(loads, monkeypatch):
+    monkeypatch.setattr(config, "COLLECTIONS", {"library": config.COLLECTIONS["library"]})
+    with pytest.raises(ToolError, match="has no notes to search"):
+        call("search_notes", text="rainfall")

@@ -14,7 +14,7 @@ from typing import NamedTuple
 from pylatexenc import latex2text, latexwalker, macrospec
 
 from literature_rag import config, text
-from literature_rag.records import Pair, ThesisChunk
+from literature_rag.records import NoteChunk, Pair, ThesisChunk
 
 # The sectioning commands, outermost first. A heading drops every heading at its own level or deeper from the path.
 LEVELS = ("chapter", "section", "subsection", "subsubsection")
@@ -305,8 +305,8 @@ def block_hash(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
-def is_current(chunk: ThesisChunk, source: str) -> bool:
-    """Whether the chunk's line range in the file's text as it stands now still holds the lines the chunk was made from. An edit to the paragraph makes it false, and so does one above it that adds or removes lines."""
+def is_current(chunk: ThesisChunk | NoteChunk, source: str) -> bool:
+    """Whether the chunk's line range in the file's text as it stands now still holds the lines the chunk was made from. An edit to the paragraph makes it false, and so does one above it that adds or removes lines. A note's passages carry the same hash, so this serves them too."""
     lines = source.split("\n")
     return block_hash("\n".join(lines[chunk["line_start"] - 1 : chunk["line_end"]])) == chunk["hash"]
 

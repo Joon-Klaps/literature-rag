@@ -1,11 +1,11 @@
 # CLAUDE.md — literature-rag
 
-Hybrid retrieval over Joon's PhD thesis and the papers it cites, served to Claude Code over MCP, and over the papers of Joon's other projects (the rapidtrees manuscript), one library per project. The background and the design decisions are in `HANDOFF-literature-rag.md` in the thesis repository (`~/Desktop/School/PhD/phd-thesis`). The build follows `PLAN.md` block by block: read it first, and log progress at its end. If `HANDOFF.md` exists, read it next: it holds the state the last session left behind.
+Hybrid retrieval over Joon's PhD thesis, the papers it cites and Joon's Obsidian notes (the thesis's `data/notes`), served to Claude Code over MCP, and over the papers of Joon's other projects (the rapidtrees manuscript), one library per project. The background and the design decisions are in `HANDOFF-literature-rag.md` in the thesis repository (`~/Desktop/School/PhD/phd-thesis`). The build follows `PLAN.md` block by block: read it first, and log progress at its end. If `HANDOFF.md` exists, read it next: it holds the state the last session left behind.
 
 ## Rules
 
-- Projects (the thesis repository, the rapidtrees manuscript) are read-only from here. Papers enter a project only through its own `scripts/fetch_pubmed_pdf.py`.
-- Nothing derived from the papers or the thesis goes into git. `data/` and `index/` are gitignored, tests use synthetic fixtures, and `results/` holds numbers only.
+- Projects (the thesis repository, the rapidtrees manuscript) are read-only from here, and so are the notes. Papers enter a project only through its own `scripts/fetch_pubmed_pdf.py`.
+- Nothing derived from the papers, the thesis or the notes goes into git. `data/` and `index/` are gitignored, tests use synthetic fixtures, and `results/` holds numbers only.
 - Joon follows the code to learn from it, so keep it modular: one stage per module, settings in `config.py`, record shapes in `records.py`, pure functions for parsing, ranking and scoring, and a `main()` per command. Comments are full sentences on one line, in UK spelling.
 - Commit or push only when Joon asks.
 

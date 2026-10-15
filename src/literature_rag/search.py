@@ -2,11 +2,12 @@
 
     uv run literature-rag-search "case fatality among hospitalised Lassa fever patients" --methods bm25,qwen3,medcpt --rerank
 
-A Collection holds the chunks of the library or the thesis, a BM25 index over their text and their vectors, and is loaded once. bm25(), dense(), rrf() and cross_encode() are the steps, and search() puts them together; neighbours() reads the chunks around a hit. The command searches each question it is given and prints the time each step took and the hits, with their key, section and opening words.
+A Collection holds the chunks of the library, the thesis or the notes, a BM25 index over their text and their vectors, and is loaded once. bm25(), dense(), rrf() and cross_encode() are the steps, and search() puts them together; neighbours() reads the chunks around a hit. The command searches each question it is given and prints the time each step took and the hits, with their key, section and opening words.
 
-To read the hits rather than skim them, --full prints each hit's whole text (--words N, any other length), and --html writes a page with the whole text, the question's words marked and every hit shown inside its paper; --open writes the page and opens it in the browser.
+To read the hits rather than skim them, --full prints each hit's whole text (--words N, any other length), and --html writes a page with the whole text, the question's words marked and every hit shown inside its paper, chapter or note; --open writes the page and opens it in the browser.
 
     uv run literature-rag-search "case fatality among hospitalised Lassa fever patients" --open
+    uv run literature-rag-search --collection notes "what did we decide about the negative controls"
 """
 
 import argparse
@@ -21,7 +22,7 @@ from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
 
 from literature_rag import chunks, config, index, models, report
-from literature_rag.records import Answer, Chunk, Hit, ThesisChunk
+from literature_rag.records import Answer, Chunk, Hit, NoteChunk, ThesisChunk
 
 # A ranking is a list of (row, score) pairs, best first, where row is a chunk's position in Collection.chunks.
 Ranking = list[tuple[int, float]]
@@ -35,7 +36,9 @@ def tokenize(text: str) -> list[str]:
 class Collection:
     """The chunks of one collection, with a BM25 index over their text and, for each embedding model, a matrix with one row per chunk. Build once, query many times."""
 
-    def __init__(self, name: str, chunk_list: list[Chunk] | list[ThesisChunk], vectors: dict[str, np.ndarray]) -> None:
+    def __init__(
+        self, name: str, chunk_list: list[Chunk] | list[ThesisChunk] | list[NoteChunk], vectors: dict[str, np.ndarray]
+    ) -> None:
         self.name = name
         self.chunks = chunk_list
         # A chunk's row by its id, to find the chunks around it.
@@ -144,15 +147,19 @@ def search(
     ]
 
 
-def document(chunk: Chunk | ThesisChunk) -> str:
-    """What a chunk is part of: its paper in the library, and its chapter in the thesis, named by the first part of its section path. A chapter can run over several files, through \\input."""
-    return chunk["paper_id"] if "paper_id" in chunk else chunk["section"].split(" > ")[0]
+def document(chunk: Chunk | ThesisChunk | NoteChunk) -> str:
+    """What a chunk is part of: its paper in the library, its note in the notes, and its chapter in the thesis, named by the first part of its section path. A chapter can run over several files, through \\input."""
+    if "paper_id" in chunk:
+        return chunk["paper_id"]
+    if "note" in chunk:
+        return chunk["note"]
+    return chunk["section"].split(" > ")[0]
 
 
-def neighbours(collection: Collection, chunk_id: str, window: int) -> list[Chunk] | list[ThesisChunk]:
-    """The chunk and up to window chunks on either side of it, in reading order, from the same paper or the same chapter. Raises KeyError for an unknown id.
+def neighbours(collection: Collection, chunk_id: str, window: int) -> list[Chunk] | list[ThesisChunk] | list[NoteChunk]:
+    """The chunk and up to window chunks on either side of it, in reading order, from the same paper, note or chapter. Raises KeyError for an unknown id.
 
-    Both chunk files are in reading order, the library paper by paper and the thesis as LaTeX reads it, so the neighbours are the rows around the chunk's own.
+    Every chunk file is in reading order, the library paper by paper, the notes note by note and the thesis as LaTeX reads it, so the neighbours are the rows around the chunk's own.
     """
     row = collection.rows[chunk_id]
     around = collection.chunks[max(0, row - window) : row + window + 1]
@@ -168,8 +175,8 @@ def query_terms(query: str) -> list[str]:
     ]
 
 
-def whole_document(collection: Collection, chunk_id: str) -> list[Chunk] | list[ThesisChunk]:
-    """All the chunks of the paper or the chapter that holds this one, in reading order. Raises KeyError for an unknown id."""
+def whole_document(collection: Collection, chunk_id: str) -> list[Chunk] | list[ThesisChunk] | list[NoteChunk]:
+    """All the chunks of the paper, note or chapter that holds this one, in reading order. Raises KeyError for an unknown id."""
     return neighbours(collection, chunk_id, len(collection.chunks))
 
 
@@ -180,6 +187,8 @@ def describe(hit: Hit, words: int = 30) -> str:
         source = f"{chunk['key'] or chunk['paper_id']} ({chunk['year'] or 'n.d.'})"
         if not chunk["citable"]:
             source += ", not citable"
+    elif "note" in chunk:
+        source = f"{chunk['note']}:L{chunk['line_start']}-{chunk['line_end']}"
     else:
         source = chunk["chunk_id"]
     places = ", ".join(f"{name} {place}" for name, place in hit["ranks"].items())
@@ -191,7 +200,7 @@ def describe(hit: Hit, words: int = 30) -> str:
 def main() -> None:
     """Entry point for `uv run literature-rag-search`."""
     config.require_project()
-    parser = argparse.ArgumentParser(description="Search the library or the thesis and print the hits.")
+    parser = argparse.ArgumentParser(description="Search the library, the thesis or the notes and print the hits.")
     parser.add_argument("questions", nargs="+", help="one or more questions, each searched on its own")
     parser.add_argument("--collection", choices=list(config.COLLECTIONS), default="library")
     parser.add_argument(
@@ -250,7 +259,7 @@ def main() -> None:
 
     if args.html or args.open:
         # Each paper or chapter once, in the order the hits first reach it.
-        documents: dict[str, list[Chunk] | list[ThesisChunk]] = {}
+        documents: dict[str, list[Chunk] | list[ThesisChunk] | list[NoteChunk]] = {}
         for answer in answers:
             for hit in answer["hits"]:
                 documents.setdefault(document(hit["chunk"]), whole_document(collection, hit["chunk"]["chunk_id"]))

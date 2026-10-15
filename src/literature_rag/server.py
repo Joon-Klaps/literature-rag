@@ -1,4 +1,4 @@
-"""The MCP server thesis-library: search the papers of a project's library and, where the project is a thesis, the thesis itself, and read the chunks around a hit.
+"""The MCP server thesis-library: search the papers of a project's library and, where the project has them, the thesis itself and the researcher's notes, and read the chunks around a hit.
 
     uv run literature-rag
 
@@ -15,12 +15,12 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from literature_rag import config, index, search, thesis
-from literature_rag.records import Chunk, Hit, LibraryPassage, ThesisChunk, ThesisParagraph
+from literature_rag.records import Chunk, Hit, LibraryPassage, NoteChunk, NotePassage, ThesisChunk, ThesisParagraph
 
 INSTRUCTIONS = (
-    f"Search over the papers in the library of the project {config.PROJECT_NAME}, its data/manuscripts, and over its text when the project is a LaTeX thesis. "
-    "search_library finds passages in the papers, search_thesis finds paragraphs of the thesis, and get_context reads the chunks around a hit from either. "
-    "A library passage is a lead: check the claim in the paper itself before citing it. A thesis paragraph is never evidence for a claim."
+    f"Search over the papers in the library of the project {config.PROJECT_NAME}, its data/manuscripts, over its text when the project is a LaTeX thesis, and over the researcher's own notes when it keeps them in data/notes. "
+    "search_library finds passages in the papers, search_thesis finds paragraphs of the thesis, search_notes finds passages in the notes, and get_context reads the chunks around a hit from any of them. "
+    "A library passage is a lead: check the claim in the paper itself before citing it. A thesis paragraph or a note is never evidence for a claim."
 )
 
 mcp = MCPServer("thesis-library", version="0.1.0", instructions=INSTRUCTIONS)
@@ -86,12 +86,13 @@ def library_passage(chunk: Chunk, score: float | None = None) -> LibraryPassage:
     return passage
 
 
-def thesis_sources(chunk_list: list[ThesisChunk]) -> dict[str, str]:
-    """The text of each file these chunks come from, as it stands now, read once per call so that edits made since the server started count. A file that is gone has no text."""
+def file_texts(chunk_list: list[ThesisChunk] | list[NoteChunk]) -> dict[str, str]:
+    """The text of each thesis or note file these chunks come from, as it stands now, read once per call so that edits made since the server started count. A file that is gone has no text."""
     sources = {}
     for file in {chunk["file"] for chunk in chunk_list}:
         path = config.PROJECT / file
-        sources[file] = path.read_text(encoding="utf-8") if path.is_file() else ""
+        # A note may hold an odd byte, which notes.read_notes() read the same way.
+        sources[file] = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
     return sources
 
 
@@ -111,6 +112,23 @@ def thesis_paragraph(chunk: ThesisChunk, sources: dict[str, str], score: float |
     if score is not None:
         paragraph["score"] = round(score, 3)
     return paragraph
+
+
+def note_passage(chunk: NoteChunk, sources: dict[str, str], score: float | None = None) -> NotePassage:
+    """A note's chunk as the tools return it, with whether its line range still holds and, from a search, its score."""
+    passage = NotePassage(
+        chunk_id=chunk["chunk_id"],
+        note=chunk["note"],
+        file=chunk["file"],
+        line_start=chunk["line_start"],
+        line_end=chunk["line_end"],
+        section=chunk["section"],
+        text=chunk["text"],
+        current=thesis.is_current(chunk, sources[chunk["file"]]),
+    )
+    if score is not None:
+        passage["score"] = round(score, 3)
+    return passage
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
@@ -144,17 +162,34 @@ def search_thesis(text: str, k: Annotated[int, Field(ge=1, le=config.SERVER_MAX_
             f"{config.PROJECT_NAME} has no thesis to search, only a library: search_thesis needs the {config.THESIS_FLS.name} of a LaTeX build in {config.PROJECT}."
         )
     hits = run("thesis", text, k)
-    sources = thesis_sources([hit["chunk"] for hit in hits])
+    sources = file_texts([hit["chunk"] for hit in hits])
     return [thesis_paragraph(hit["chunk"], sources, hit["score"]) for hit in hits]
+
+
+@mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
+def search_notes(text: str, k: Annotated[int, Field(ge=1, le=config.SERVER_MAX_HITS)] = 8) -> list[NotePassage]:
+    """Find passages in the researcher's own notes that bear on a question, a claim or a topic: an Obsidian vault of daily notes, notes from seminars, courses and conferences, questions and answers from meetings, project notes and cheat sheets.
+
+    Returns the k best, best first, each with the note's name (its path in the vault, which for a daily note is its date), its file in the project, line range, the headings above it, and its text. current is false when those lines have changed since the notes were indexed: find the passage by its text, and run literature-rag-chunk and then literature-rag-build to refresh the index. score is the reranker's relevance, from 0 to 1, as in search_library: near 0 means nothing on the subject, and high means on the subject, not that the passage answers the question.
+
+    Notes are informal and unreviewed, written at the time, with typos and half sentences: what the researcher thought, heard, planned or was told, which may since have changed. A note is a lead to a paper, a person, a decision or an earlier idea, and a remark from a talk needs its paper before it goes into the thesis; a note is never evidence for a claim and never a citation.
+    """
+    if "notes" not in config.COLLECTIONS:
+        raise ToolError(
+            f"{config.PROJECT_NAME} has no notes to search: search_notes needs a folder of notes in {config.NOTES_DIR}."
+        )
+    hits = run("notes", text, k)
+    sources = file_texts([hit["chunk"] for hit in hits])
+    return [note_passage(hit["chunk"], sources, hit["score"]) for hit in hits]
 
 
 @mcp.tool(annotations=ToolAnnotations(read_only_hint=True))
 def get_context(
     chunk_id: str, window: Annotated[int, Field(ge=0, le=config.SERVER_MAX_WINDOW)] = 1
-) -> list[LibraryPassage] | list[ThesisParagraph]:
-    """Read a hit in its context: the chunk with this id and up to window chunks on either side, in reading order, from the same paper or the same thesis chapter.
+) -> list[LibraryPassage] | list[ThesisParagraph] | list[NotePassage]:
+    """Read a hit in its context: the chunk with this id and up to window chunks on either side, in reading order, from the same paper, thesis chapter or note.
 
-    Use it when a passage starts or stops mid-argument, or to read what comes before a number. chunk_id comes from search_library or search_thesis. The chunks come back as those tools return them, without a score.
+    Use it when a passage starts or stops mid-argument, or to read what comes before a number. chunk_id comes from search_library, search_thesis or search_notes. The chunks come back as those tools return them, without a score.
     """
     with lock:
         for name in config.COLLECTIONS:
@@ -164,11 +199,13 @@ def get_context(
                 break
         else:
             raise ToolError(
-                f"No chunk {chunk_id!r}. Chunk ids come from search_library and search_thesis, and a thesis chunk's id changes when its lines move."
+                f"No chunk {chunk_id!r}. Chunk ids come from search_library, search_thesis and search_notes, and a thesis chunk's id changes when its lines move."
             )
     if name == "library":
         return [library_passage(chunk) for chunk in chunk_list]
-    sources = thesis_sources(chunk_list)
+    sources = file_texts(chunk_list)
+    if name == "notes":
+        return [note_passage(chunk, sources) for chunk in chunk_list]
     return [thesis_paragraph(chunk, sources) for chunk in chunk_list]
 
 

@@ -32,6 +32,8 @@ BIB_FILE = PROJECT / "allpapers.bib"
 THESIS_BBL = PROJECT / "thesis.bbl"
 # latexmk's record of every file the last build of a thesis read. It lists the chapter files that are really part of the thesis, whatever macro included them. A project without one has no thesis collection.
 THESIS_FLS = PROJECT / "thesis.fls"
+# The researcher's own notes: an Obsidian vault, or any folder of Markdown files, whose folders may be symbolic links into the vault. A project without one has no notes collection.
+NOTES_DIR = PROJECT / "data" / "notes"
 # The only door through which a paper enters the library, run with the project's own environment.
 FETCH_SCRIPT = PROJECT / "scripts" / "fetch_pubmed_pdf.py"
 PROJECT_PYTHON = PROJECT / ".venv" / "bin" / "python"
@@ -54,6 +56,8 @@ PAPERS_DIR = DATA_DIR / "papers"
 CHUNKS_DIR = DATA_DIR / "chunks"
 LIBRARY_CHUNKS_FILE = CHUNKS_DIR / "library.jsonl"
 THESIS_CHUNKS_FILE = CHUNKS_DIR / "thesis.jsonl"
+# The notes are private, like the papers and the chapters, so their chunks stay under data/ too.
+NOTES_CHUNKS_FILE = CHUNKS_DIR / "notes.jsonl"
 # Test questions drawn from the thesis. They quote unpublished chapters, so they stay under data/ too.
 EVAL_DIR = DATA_DIR / "eval"
 THESIS_PAIRS_FILE = EVAL_DIR / "thesis_pairs.jsonl"
@@ -120,6 +124,11 @@ THESIS_EXCLUDED = {
     "chapters/01_abstract_nl/01_abstract_nl.tex",
 }
 
+# Markdown files in the notes folder that are not notes, as fnmatch patterns on the path within the folder, in which * also matches a slash. Excalidraw drawings keep their labels as text, which without the drawing say nothing ("Step 1 | A | 42"). Hidden folders and folders that are git repositories of their own, such as course material cloned into the vault, are left out as well (notes.note_files).
+NOTES_EXCLUDED = ("*.excalidraw.md",)
+# Lines that an Obsidian plugin writes and that say nothing, each pattern matched against a whole line once Obsidian's syntax is gone: the heading of a page of PDF annotations, as in "Notes for Lecture 3.pdf:", which is all that most such pages hold, and the link from an annotation back to its place in the PDF, which the Annotator plugin writes under every one.
+NOTES_BOILERPLATE_LINES = (r"Notes for .+\.pdf:", r"show annotation")
+
 EUROPE_PMC_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 # Europe PMC is shared infrastructure, so only a few downloads run at once.
 EUROPE_PMC_CONCURRENCY = 4
@@ -157,6 +166,7 @@ EMBEDDING_MODELS = {
 QUERY_INSTRUCTIONS = {
     "library": "Given a claim from a PhD thesis, retrieve the passage from a scientific paper that supports it",
     "thesis": "Given a claim or a passage from a scientific paper, retrieve the paragraph of a PhD thesis that discusses it",
+    "notes": "Given a question or a claim, retrieve the passage of a researcher's own notes, from meetings, seminars, courses and daily work, that discusses it",
 }
 # Passages per forward pass. On the M1 Max, Qwen3 is fastest at 8 (about 11 chunks a second, so 15 minutes for the library) and MedCPT at 16 (about 55 a second); larger batches carry more padding.
 EMBEDDING_BATCH = {"qwen3": 8, "medcpt": 16}
@@ -168,10 +178,12 @@ RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 RERANKER_MAX_TOKENS = 1024
 RERANKER_BATCH = 16
 
-# The things search can look in, and the chunk file each is read from. Their vectors live in INDEX_DIR/<collection>/. Every project has a library; only a project with a thesis.fls has a thesis to search.
+# The things search can look in, and the chunk file each is read from. Their vectors live in INDEX_DIR/<collection>/. Every project has a library; only a project with a thesis.fls has a thesis to search, and only one with a data/notes has notes.
 COLLECTIONS = {"library": LIBRARY_CHUNKS_FILE}
 if THESIS_FLS.is_file():
     COLLECTIONS["thesis"] = THESIS_CHUNKS_FILE
+if NOTES_DIR.is_dir():
+    COLLECTIONS["notes"] = NOTES_CHUNKS_FILE
 # Each method hands this many candidates to fusion, ranked best first.
 CANDIDATES = 100
 # Reciprocal rank fusion scores a passage as the sum of 1 / (RRF_K + rank) over the rankings it appears in. 60 is the constant of the original paper (Cormack and others, 2009), which damps the difference between the first few ranks.

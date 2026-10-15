@@ -1,6 +1,6 @@
 # literature-rag
 
-Hybrid retrieval over a PhD thesis on Lassa virus genomic surveillance (KU Leuven) and the roughly 300 papers it draws on, served to Claude Code as an MCP server. It was built for the jury revisions: finding the source of a claim, checking a number against the paper it came from, and finding where a new paper belongs in the thesis.
+Hybrid retrieval over a PhD thesis on Lassa virus genomic surveillance (KU Leuven), the roughly 300 papers it draws on, and the researcher's own Obsidian notes, served to Claude Code as an MCP server. It was built for the jury revisions: finding the source of a claim, checking a number against the paper it came from, and finding where a new paper belongs in the thesis.
 
 It serves other projects too, each with a library of its own: any repository that keeps its papers in `data/manuscripts/` the way the thesis does (see "Projects" below).
 
@@ -9,10 +9,10 @@ Status: under construction. Retrieval, its evaluation and the MCP server are bui
 ## How it works
 
 1. Structured text. Publisher JATS XML from Europe PMC where the paper is open access, GROBID TEI from the PDF otherwise. Both keep sections, captions and the reference list, and link each in-text citation to its reference.
-2. Chunks. Paragraphs within one section, each carrying its citation key, its section and the references it cites. The thesis is indexed separately, as LaTeX paragraphs with file and line range.
+2. Chunks. Paragraphs within one section, each carrying its citation key, its section and the references it cites. The thesis is indexed separately, as LaTeX paragraphs with file and line range, and so are the notes, as paragraphs merged within a heading, with note and line range.
 3. Retrieval. Lexical search (BM25) and semantic search (two open-weight embedding models, Qwen3-Embedding-0.6B and NCBI's MedCPT), fused with reciprocal rank fusion and reordered by a cross-encoder.
 4. Evaluation. About 160 questions drawn from the thesis itself, each answered by the paper it cites, with an off-the-shelf tool (qmd) as the baseline to beat.
-5. MCP server. `search_library`, `search_thesis` and `get_context`, for Claude Code.
+5. MCP server. `search_library`, `search_thesis`, `search_notes` and `get_context`, for Claude Code.
 
 ## Setup
 
@@ -37,7 +37,7 @@ Every command works on one project: the folder `LITERATURE_RAG_PROJECT` names, o
 
 From a terminal, run the commands inside the project, or name it: `LITERATURE_RAG_PROJECT=~/Desktop/School/PhD/phd-thesis uv run literature-rag-check`.
 
-Everything derived from a project's papers lives in this repository, under `data/<project>/` and `index/<project>/`, named after the project's folder. Each project has its own library, with the citation keys of its own bibliography, so a passage never carries a key that the project cannot cite. Hand-made key corrections are in `key-overrides/<project>.csv` and evaluation numbers in `results/<project>/`. A project with a `thesis.fls`, latexmk's record of a LaTeX build, also has a thesis collection for `search_thesis`; the test questions come from that thesis, so only the thesis is evaluated.
+Everything derived from a project's papers lives in this repository, under `data/<project>/` and `index/<project>/`, named after the project's folder. Each project has its own library, with the citation keys of its own bibliography, so a passage never carries a key that the project cannot cite. Hand-made key corrections are in `key-overrides/<project>.csv` and evaluation numbers in `results/<project>/`. A project with a `thesis.fls`, latexmk's record of a LaTeX build, also has a thesis collection for `search_thesis`; the test questions come from that thesis, so only the thesis is evaluated. A project with a `data/notes/` folder also has a notes collection for `search_notes` (see "Notes" below).
 
 To add a project, give it the layout above, set the variable in its `.claude/settings.local.json`, run `literature-rag-ingest`, `literature-rag-chunk` and `literature-rag-build` inside it, and register the server from it (see "Using it from Claude Code").
 
@@ -56,6 +56,7 @@ To try a search from the command line, with any of the methods (`bm25`, `qwen3`,
 ```bash
 uv run literature-rag-search "case fatality among hospitalised Lassa fever patients" --methods bm25,qwen3,medcpt --rerank
 uv run literature-rag-search --collection thesis "the multimammate mouse is the main reservoir"
+uv run literature-rag-search --collection notes "what did we decide about the negative controls"
 ```
 
 The terminal shows the first 30 words of each hit, which is enough to skim. To read them, `--full` prints each hit's whole text (`--words N` prints N words), and `--html` writes a self-contained page to `data/<project>/reports/` with the whole text of every hit, the words of the question marked, and, below the hits, each paper (or thesis chapter) the hits came from once, with all its chunks in reading order and the hits highlighted. Each hit links to its chunk in that paper, to the paper's PDF and Markdown (or the thesis's LaTeX file) and to its DOI. `--open` writes the page and opens it in the browser. Several questions go into one page.
@@ -80,6 +81,17 @@ literature-rag-add --mode title "Spatial and temporal evolution of Lassa virus"
 
 Papers still enter the library only through the fetch script. One fetched by running the script directly joins at the next `literature-rag-ingest`, `literature-rag-chunk` and `literature-rag-build`. Rerun the two install lines, with `--reinstall` added to the second, after a change to the dependencies or to the commands in `pyproject.toml`.
 
+## Notes
+
+A project's `data/notes/` holds the researcher's own notes: an Obsidian vault, or any folder of Markdown files. Its folders may be symbolic links into the vault; the thesis's are, into `~/phd/Notes`. Like the rest of the project, it is only ever read. Chunking reads every Markdown file in it and below it, following the links, except:
+
+- hidden folders (`.obsidian`, `.git`, `.trash`), and folders that are git repositories of their own, such as a course's material cloned into the vault;
+- the files that `config.NOTES_EXCLUDED` names: Excalidraw drawings, whose text is their labels without the drawing.
+
+Each note is read much as Obsidian reads it. The frontmatter and `%%` comments are not text, though `%%` inside a code block is code; a heading starts a section; a blank line or a horizontal rule ends a paragraph; and a fenced code block belongs to its paragraph whatever it holds, so a `# comment` in a script is not a heading. Embedded images and files, block ids and callout markers go, links read as their text, and lines that a plugin writes and that say nothing (`config.NOTES_BOILERPLATE_LINES`, such as the heading of an empty page of PDF annotations) are dropped. The paragraphs of each section are then merged into passages as a paper's are. A passage carries the note's name (its path in the vault without `.md`, so a daily note's name is its date), its file and its line range, and `search_notes` says when those lines have changed since chunking.
+
+Notes change every day, and the index does not follow by itself: `literature-rag-chunk` and `literature-rag-build` bring it up to date in seconds, embedding only the passages whose text is new. In the HTML report, a note links to Obsidian (`obsidian://`) and to its Markdown file.
+
 ## Evaluating
 
 ```bash
@@ -99,14 +111,15 @@ claude mcp add thesis-library --scope local -- uv run --project ~/Desktop/School
 
 `uv run --project` runs this repository's environment without leaving the folder Claude Code runs in, so the server serves that project even when the project's `LITERATURE_RAG_PROJECT` does not reach it. The name is the same in every project, so agents and skills that call its tools work in each.
 
-It has three tools, all read-only:
+It has four tools, all read-only:
 
 - `search_library(question, k=8, citable_only=True)`: passages from the papers, each with its citation key, title, year, DOI, section, text, the references it cites, a relevance score from 0 to 1, and the path of the paper's Markdown in the project, next to its PDF, to check the passage against.
 - `search_thesis(text, k=5)`: paragraphs and captions of the thesis, each with its file, line range, section path and cited keys, and `current`, false when those lines have changed since the thesis was indexed. In a project without a thesis it says so instead.
-- `get_context(chunk_id, window=1)`: a hit with the chunks around it, from the same paper or the same chapter.
+- `search_notes(text, k=8)`: passages of the notes, each with its note's name, file, line range, headings and text, a relevance score, and `current`, as for the thesis. In a project without notes it says so instead.
+- `get_context(chunk_id, window=1)`: a hit with the chunks around it, from the same paper, chapter or note.
 
-A passage is a lead to check against the paper, and a thesis paragraph is never evidence for a claim; the tool descriptions say both to the model. The first call takes about ten seconds while the models load, later calls about three. The server notices when `literature-rag-chunk` or `literature-rag-build` has changed its files and loads them again, so a paper added during a session is found without a restart; after a change to the code, reconnect it with `/mcp`. After editing the thesis, run `literature-rag-chunk` and `literature-rag-build` to bring its line numbers up to date.
+A passage is a lead to check against the paper, and a thesis paragraph or a note is never evidence for a claim; the tool descriptions say this to the model, and that notes are informal and may be out of date. The first call takes about ten seconds while the models load, later calls about three. The server notices when `literature-rag-chunk` or `literature-rag-build` has changed its files and loads them again, so a paper added during a session is found without a restart; after a change to the code, reconnect it with `/mcp`. After editing the thesis, run `literature-rag-chunk` and `literature-rag-build` to bring its line numbers up to date.
 
 ## What is not in this repository
 
-Paper text, XML, TEI, chunks, embeddings and anything quoting the thesis live in `data/` and `index/`, which are gitignored: the papers are copyrighted and the thesis chapters are unpublished. `results/` holds aggregate numbers only.
+Paper text, XML, TEI, chunks, embeddings and anything quoting the thesis or the notes live in `data/` and `index/`, which are gitignored: the papers are copyrighted, the thesis chapters are unpublished, and the notes are private. `results/` holds aggregate numbers only.

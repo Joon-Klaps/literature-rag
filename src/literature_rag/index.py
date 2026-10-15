@@ -1,6 +1,6 @@
-"""Embed every chunk of both collections with each embedding model, and keep the vectors under index/.
+"""Embed every chunk of each collection with each embedding model, and keep the vectors under index/.
 
-Run `uv run literature-rag-build` after `literature-rag-chunk`; `literature-rag-add` runs all three. For each collection (library, thesis) and each model in config.EMBEDDING_MODELS, it keeps two files in index/<project>/<collection>/:
+Run `uv run literature-rag-build` after `literature-rag-chunk`; `literature-rag-add` runs all three. For each collection the project has (library, thesis, notes) and each model in config.EMBEDDING_MODELS, it keeps two files in index/<project>/<collection>/:
 
 - <model>.npy: the vectors, one row per distinct passage text, in float16 to halve the size.
 - <model>.json: the model's entry in config.EMBEDDING_MODELS, and for each row the hash of the text it was made from.
@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 
 from literature_rag import chunks, config, models
-from literature_rag.records import Chunk, ThesisChunk
+from literature_rag.records import Chunk, NoteChunk, ThesisChunk
 
 
 class StaleIndex(RuntimeError):
@@ -62,7 +62,9 @@ def write_store(collection: str, model: str, hashes: list[str], vectors: np.ndar
     temporary.replace(meta_path)
 
 
-def embed(collection: str, model: str, chunk_list: list[Chunk] | list[ThesisChunk]) -> tuple[int, int]:
+def embed(
+    collection: str, model: str, chunk_list: list[Chunk] | list[ThesisChunk] | list[NoteChunk]
+) -> tuple[int, int]:
     """Bring a model's vectors for a collection up to date with its chunks, and return how many distinct texts were reused and how many embedded.
 
     The texts without a vector are embedded longest first, so that a passage too long for the GPU's memory fails in the first minute rather than the last, and each round is saved as it finishes. Vectors whose text no chunk has any more are dropped at the end, so the store does not grow with every change.
@@ -91,13 +93,15 @@ def embed(collection: str, model: str, chunk_list: list[Chunk] | list[ThesisChun
     return len(parts) - len(todo), len(todo)
 
 
-def missing(collection: str, model: str, chunk_list: list[Chunk] | list[ThesisChunk]) -> int:
+def missing(collection: str, model: str, chunk_list: list[Chunk] | list[ThesisChunk] | list[NoteChunk]) -> int:
     """How many chunks have no vector from this model."""
     known = set(read_store(collection, model)[0])
     return sum(text_hash(chunks.index_parts(chunk)) not in known for chunk in chunk_list)
 
 
-def load_vectors(collection: str, model: str, chunk_list: list[Chunk] | list[ThesisChunk]) -> np.ndarray:
+def load_vectors(
+    collection: str, model: str, chunk_list: list[Chunk] | list[ThesisChunk] | list[NoteChunk]
+) -> np.ndarray:
     """A model's vectors for the chunks, one float32 row per chunk in the order given. Raises StaleIndex when a chunk has none, since a search over outdated vectors would quietly return the wrong passages."""
     hashes, vectors = read_store(collection, model)
     row = {h: n for n, h in enumerate(hashes)}
